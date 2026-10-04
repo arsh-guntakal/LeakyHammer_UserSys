@@ -26,3 +26,11 @@ __pycache__/
 /gem5/run.sh
 /gem5/attack-binaries/
 /gem5/m5out/
+
+# Leftover local files from the pre-reorganization workflow (untracked earlier
+# but possibly still on disk)
+/setup_*.log
+/experiments_*.log
+/gem5/results_archive/
+/gem5/run_*.sh
+/gem5/figure6.working.pdf
