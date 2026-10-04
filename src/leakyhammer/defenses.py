@@ -7,7 +7,7 @@ sources (see "docs/adding-a-defense.md").
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Mapping, Optional, Set, Tuple
 
 from leakyhammer import paths
 
@@ -124,3 +124,55 @@ def get_defense(name: str) -> Defense:
             f"Unknown defense '{name}'; choose from {sorted(DEFENSES)}"
         )
     return DEFENSES[key]
+
+
+@dataclass(frozen=True)
+class Variant:
+    """A defense, optionally with plugin parameters overridden.
+
+    - defense (str): name in "DEFENSES".
+    - overrides (tuple[tuple[str, Any], ...]): plugin parameter overrides,
+      sorted by key (a tuple so the variant is hashable).
+    """
+
+    defense: str
+    overrides: Tuple[Tuple[str, Any], ...] = ()
+
+    @property
+    def spec(self: "Variant") -> Defense:
+        """Returns the defense this variant configures."""
+        return get_defense(self.defense)
+
+    @property
+    def name(self: "Variant") -> str:
+        """Returns a file-safe name, e.g. "dream_threshold62"."""
+        return "_".join([self.defense] + [f"{k}{v}" for k, v in self.overrides])
+
+    @property
+    def label(self: "Variant") -> str:
+        """Returns a display label, e.g. "dream[threshold=62]"."""
+        if not self.overrides:
+            return self.defense
+        inner = ",".join(f"{k}={v}" for k, v in self.overrides)
+        return f"{self.defense}[{inner}]"
+
+
+def parse_variant(
+    raw: object, extra_keys: Optional[Set[str]] = None
+) -> Variant:
+    """Validates one "variants" entry of a config and converts it.
+
+    "extra_keys" are additional keys the calling experiment accepts (it reads
+    them itself). Unknown keys, unknown defenses, and overrides on a defense
+    with no tunable plugin all raise "ValueError".
+    """
+    if not isinstance(raw, Mapping) or "defense" not in raw:
+        raise ValueError(f"Each variant needs a 'defense' key, got {raw!r}")
+    unknown = set(raw) - {"defense", "overrides"} - (extra_keys or set())
+    if unknown:
+        raise ValueError(f"Unknown variant key(s) {sorted(unknown)}")
+    spec = get_defense(raw["defense"])
+    overrides = tuple(sorted((raw.get("overrides") or {}).items()))
+    if overrides and spec.plugin_impl is None:
+        raise ValueError(f"Defense '{spec.name}' takes no overrides")
+    return Variant(spec.name, overrides)

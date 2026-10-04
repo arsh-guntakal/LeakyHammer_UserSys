@@ -27,5 +27,5 @@ done
 if [ "$want_ramulator" = 1 ]; then (cd "$ROOT/gem5" && ./rebuild.sh --ramulator); fi
 if [ "$want_gem5" = 1 ]; then (cd "$ROOT/gem5" && ./rebuild.sh --gem5); fi
 if [ "$want_attacks" = 1 ]; then
-    "$ROOT/.venv/bin/python" -m leakyhammer.attacks.build -j "$JOBS"
+    "$ROOT/.venv/bin/python" "$ROOT/tools/compile-attacks" -j "$JOBS"
 fi

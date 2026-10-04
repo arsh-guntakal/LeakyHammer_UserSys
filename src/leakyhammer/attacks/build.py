@@ -6,10 +6,9 @@ gem5's "m5" library and headers; gem5 itself never links them. A defense's
 programs live in "attacks/<defense>/" ("sender.cc", "receiver.cc",
 "poc_sender.cc", "poc_receiver.cc") and compile to "<defense>_<role>".
 
-Run "python -m leakyhammer.attacks.build --help" for the command line.
+The command line is "tools/compile-attacks".
 """
 
-import argparse
 import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
@@ -183,26 +182,3 @@ def build(names: Sequence[str] = (), jobs: Optional[int] = None) -> List[Path]:
 
     with ThreadPoolExecutor(max_workers=jobs or os.cpu_count() or 1) as pool:
         return list(pool.map(compile_one, selected))
-
-
-def main(argv: Optional[Sequence[str]] = None) -> None:
-    """Command-line entry point."""
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument(
-        "targets", nargs="*", help="defense, program, noise, latency, or all"
-    )
-    parser.add_argument("-j", "--jobs", type=int, default=None)
-    parser.add_argument(
-        "--list", action="store_true", help="list programs and exit"
-    )
-    args = parser.parse_args(argv)
-    if args.list:
-        for name in targets():
-            print(name)
-        return
-    for output in build(args.targets, args.jobs):
-        print(f"built {output}")
-
-
-if __name__ == "__main__":
-    main()
