@@ -6,6 +6,10 @@
 # --gem5: rebuild gem5
 # --all: rebuild both ramulator and gem5
 
+# Parallel jobs; override with e.g. JOBS=32 ./rebuild.sh --all
+RAMULATOR_JOBS=${JOBS:-8}
+GEM5_JOBS=${JOBS:-2}
+
 rebuild_ramulator() {
     echo "Rebuilding ramulator"
     cd ext/ramulator2/ramulator2
@@ -15,7 +19,7 @@ rebuild_ramulator() {
     fi
     cd build
     cmake -DCMAKE_BUILD_TYPE=Debug ..
-    make -j8
+    make -j"$RAMULATOR_JOBS" || exit 1
     cp ./ramulator2 ../ramulator2
     echo "Ramulator rebuilt successfully"
     cd ../../../
@@ -23,9 +27,15 @@ rebuild_ramulator() {
 
 rebuild_gem5() {
     echo "Rebuilding gem5"
-    python3 `which scons` build/X86/gem5.opt -j2
+    # gem5 embeds the *system* python3 (via python3-config), so scons must also
+    # run under /usr/bin/python3. A uv/venv python3 here makes gem5.opt abort at
+    # build time with "No module named '_contextvars'". scons itself is pure
+    # python, so borrow it from the uv venv's site-packages.
+    VENV_SITE=$(ls -d "$(dirname "$0")"/../.venv/lib/python3.*/site-packages 2>/dev/null | head -1)
+    SCONS_BIN=$(ls "$(dirname "$0")"/../.venv/bin/scons 2>/dev/null || command -v scons)
+    PYTHONPATH="$VENV_SITE:$PYTHONPATH" /usr/bin/python3 "$SCONS_BIN" build/X86/gem5.opt -j"$GEM5_JOBS" || exit 1
     echo "gem5 rebuilt successfully"
-    scons -C util/m5 build/x86/out/m5
+    PYTHONPATH="$VENV_SITE:$PYTHONPATH" /usr/bin/python3 "$SCONS_BIN" -C util/m5 build/x86/out/m5 || exit 1
     echo "m5 util built successfully"
 }
 
