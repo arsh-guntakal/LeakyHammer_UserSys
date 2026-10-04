@@ -13,6 +13,7 @@ __pycache__/
 # data (everything the code can regenerate).
 /results/
 /build/
+/tests/data/
 
 # Generated: the simulator build
 /gem5/build/
