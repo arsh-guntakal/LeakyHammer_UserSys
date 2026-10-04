@@ -1,0 +1,6 @@
+# Send a short text message through each defense (about a minute in total).
+variants:
+  - defense: prac
+  - defense: rfm
+  - defense: dream
+  - defense: rrs

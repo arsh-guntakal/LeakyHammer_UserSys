@@ -1,0 +1,4 @@
+# Memory-request latency under PRAC; the figure marks PRAC's back-off and
+# refresh bands, so only the prac defense is meaningful here.
+variants:
+  - defense: prac

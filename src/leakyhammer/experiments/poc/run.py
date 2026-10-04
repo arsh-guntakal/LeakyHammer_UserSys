@@ -1,68 +1,37 @@
-"""Runs the proof of concept for one or more defenses.
+"""Runs the proof of concept for every defense a config lists, in parallel.
 
 Examples:
-    python -m leakyhammer.experiments.poc.run --defense rfm dream
-    python -m leakyhammer.experiments.poc.run --defense dream --set threshold=62
+    python -m leakyhammer.experiments.poc.run --config default
+    python -m leakyhammer.experiments.poc.run --config dream_threshold
 """
 
 import argparse
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional, Sequence
-
-import yaml
+from typing import Optional, Sequence
 
 from leakyhammer import results
-from leakyhammer.defenses import DEFENSES, get_defense
-from leakyhammer.experiments.poc.main import EXPERIMENT, plot_trial, run_poc
-
-
-def parse_overrides(pairs: Sequence[str]) -> Dict[str, Any]:
-    """Parses "key=value" strings; values are read as YAML scalars."""
-    overrides: Dict[str, Any] = {}
-    for pair in pairs:
-        key, sep, value = pair.partition("=")
-        if not sep:
-            raise ValueError(f"Expected key=value, got '{pair}'")
-        overrides[key] = yaml.safe_load(value)
-    return overrides
+from leakyhammer.experiments.poc.main import EXPERIMENT, load_config, run_poc
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """Command-line entry point; returns the process exit status."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument(
-        "--defense",
-        nargs="+",
-        default=sorted(DEFENSES),
-        help="defenses to run (default: all)",
+        "--config", required=True, help="config name or YAML path"
     )
     parser.add_argument(
-        "--set",
-        nargs="*",
-        default=[],
-        metavar="KEY=VALUE",
-        help="plugin parameter overrides, applied to every defense given",
+        "--batch", default=None, help="batch name (default: config name)"
     )
-    parser.add_argument("--batch", default="default")
-    parser.add_argument("--no-figure", action="store_true")
     args = parser.parse_args(argv)
 
-    overrides = parse_overrides(args.set)
-    batch = results.batch_dir(EXPERIMENT, args.batch)
-    defenses = [get_defense(name) for name in args.defense]
-
-    # Simulations run in parallel; figures are drawn afterwards, one at a
-    # time, because matplotlib's pyplot is not thread-safe.
-    with ThreadPoolExecutor(max_workers=len(defenses)) as pool:
-        records = list(
-            pool.map(lambda d: run_poc(d, batch, overrides), defenses)
-        )
+    config = load_config(args.config)
+    batch = results.batch_dir(EXPERIMENT, args.batch or config.name)
+    with ThreadPoolExecutor(max_workers=len(config.variants)) as pool:
+        records = list(pool.map(lambda v: run_poc(v, batch), config.variants))
     status = 0
-    for defense, record in zip(defenses, records):
+    for record in records:
         if record["status"] == "ok":
-            if not args.no_figure:
-                plot_trial(defense, batch, overrides)
             print(
                 f"{record['trial']:<24} sent {record['sent_text']!r} "
                 f"decoded {record['decoded_text']!r} "

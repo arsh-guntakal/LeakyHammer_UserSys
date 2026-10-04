@@ -11,10 +11,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, Sequence
 
 from leakyhammer import results
-from leakyhammer.experiments.noise_sweep.config import load_config
 from leakyhammer.experiments.noise_sweep.main import (
     EXPERIMENT,
     Trial,
+    load_config,
     run_trial,
     trials,
 )
@@ -27,7 +27,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """Command-line entry point; returns the process exit status."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument(
-        "--config", default="default", help="config name or YAML path"
+        "--config", required=True, help="config name or YAML path"
     )
     parser.add_argument(
         "--batch", default=None, help="batch name (default: config name)"
@@ -52,7 +52,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(trial.simulation(batch).shell_command())
         return 0
 
-    print(f"{len(todo)} trials -> {batch} ({args.jobs} parallel)")
+    print(f"{len(todo)} trials -> {batch} ({args.jobs} parallel)", flush=True)
     failed = []
 
     def one(trial: Trial) -> dict:
@@ -63,7 +63,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         for done, future in enumerate(as_completed(futures), start=1):
             trial = futures[future]
             record = future.result()
-            print(f"[{done}/{len(todo)}] {trial.id}: {record['status']}")
+            print(
+                f"[{done}/{len(todo)}] {trial.id}: {record['status']}",
+                flush=True,
+            )
             if record["status"] != "ok":
                 failed.append((trial.id, record["error"]))
 
