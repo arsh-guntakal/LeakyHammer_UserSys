@@ -4,18 +4,21 @@ An experiment is a package under `src/leakyhammer/experiments/<name>/`:
 
 | File | Role |
 |---|---|
-| `main.py` | Run **one** trial and store one record. |
-| `run.py` | Expand a YAML config into trials and run them in parallel. |
-| `plot.py` | Tables, CSVs and figures from stored records. |
-| `configs/*.yaml` | Named configs; one file describes one batch. |
+| `README.md` | How to run it and what data it provides. |
+| `main.py` | Run **one** trial and store one record (also holds the config types). |
+| `configs/*.yaml` | Named configs; one file describes one sweep of trials. |
+| `run.py` | Expand a config into trials and run them; `--config` is required. |
+| `plot.py` | Tables, CSVs and figures from stored records; `--config` is required. |
 
 ## Available experiments
 
 | Experiment | What it measures | Typical command |
 |---|---|---|
-| `noise_sweep` | BER and capacity per defense, with and without background noise (the report's Figures 4/7 and Table 1). | `python -m leakyhammer.experiments.noise_sweep.run --config default -j 32` |
-| `poc` | A short text message through each defense (Figures 2/3/6/7/8). | `python -m leakyhammer.experiments.poc.run --defense rfm dream` |
-| `latency_profile` | Single-process access latency under PRAC, showing the back-off spikes. | `python -m leakyhammer.experiments.latency_profile.main` |
+| `noise_sweep` | BER and capacity per defense, with and without background noise. | `python -m leakyhammer.experiments.noise_sweep.run --config default -j 32` |
+| `poc` | A short text message through each defense. | `python -m leakyhammer.experiments.poc.run --config default` |
+| `latency_profile` | Single-process access latency under PRAC, showing the back-off spikes. | `python -m leakyhammer.experiments.latency_profile.run --config default` |
+
+Each experiment's own `README.md` says how to run it and what data it provides.
 
 Run commands from the repository root with the uv environment
 (`uv run python -m ...`, or the container's `.venv`).
@@ -108,10 +111,14 @@ LeakyHammer paper.
 
 ## Adding an experiment
 
-1. Create the package with `main.py` (one trial; store a record with
-   `results.save_record`, include `results.provenance`), `run.py`, `plot.py`.
+1. Create the package with `README.md`, `main.py` (one trial; store a record
+   with `results.save_record`, include `results.provenance`; define the config
+   types here), `configs/`, `run.py` and `plot.py` (both take a required
+   `--config`). Put the experiment's plotting code in `plot.py`; the core
+   library draws nothing.
 2. Call the simulator through `leakyhammer.sim` rather than building gem5
    commands by hand.
 3. Add tests under `tests/experiments/` that fake `Simulation.run` with a log
-   from `tests/data/`, so they run in milliseconds.
+   from the builders in `tests/conftest.py`, so they run in milliseconds, plus
+   one `experiment`-marked end-to-end test.
 4. Don't draw figures from worker threads (see `CLAUDE.md`).

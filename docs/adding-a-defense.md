@@ -18,7 +18,8 @@ A defense plugs into every experiment (noise sweep, POC) through one entry in
 3. **Attack programs.** Create `src/leakyhammer/attacks/<name>/` with
    `sender.cc`, `receiver.cc`, `poc_sender.cc`, `poc_receiver.cc` (copy the
    DREAM or RFM ones). They share `common/rowhammer-side.{cc,hh}` and
-   `rowhammer-addr.hh`. The build picks them up automatically.
+   `rowhammer-addr.hh`. The build picks them up automatically
+   (`tools/compile-attacks`).
    - The programs must print the lines the parser reads:
      `[<NAME>-SEND] Binary: <bits>`, `[<NAME>-RECV] Binary: <bits>`,
      `[<NAME>-RECV] Received in <ns> ns`. Receivers should also print
@@ -35,19 +36,22 @@ A defense plugs into every experiment (noise sweep, POC) through one entry in
    (`txn_period_ns`), noise rates, POC options, and `plugin_impl` if it has
    tunable parameters.
 
-5. **POC figure.** Add `src/leakyhammer/plotting/poc_<name>.py` exposing
-   `plot(log_path, out_path)`; the POC experiment imports it by name.
+5. **POC figure.** Add the defense to `plot_poc` in
+   `src/leakyhammer/experiments/poc/plot.py` (reuse `_plot_counts` if its
+   receiver prints one count per window, as RFM and RRS do), and to the
+   experiments' configs (`configs/*.yaml`) that should include it.
 
 6. **Tests.** `tests/test_defenses.py` already checks every registered
-   defense has a config and all four sources. Add a small real log to
-   `tests/data/` and a parse test if your logs have a new shape.
+   defense has a config and all four sources. If your logs have a new shape,
+   extend the builders in `tests/conftest.py` (`transmission_log`, `poc_log`)
+   and add a parse test; do not commit log files.
 
 7. **Check it works.**
 
    ```bash
-   tools/build --attacks
-   python -m leakyhammer.experiments.poc.run --defense <name>
-   python -m leakyhammer.experiments.noise_sweep.run --config quick   # add <name> to a config first
+   tools/compile-attacks
+   python -m leakyhammer.experiments.poc.main --defense <name>
+   python -m leakyhammer.experiments.noise_sweep.run --config quick   # add <name> to the config first
    uv run pytest -m "not slow"
    ```
 

@@ -5,7 +5,9 @@
 > (`gem5/result-scripts`, `gem5/attack-scripts`, per-run docker mounts) and no
 > longer work: use `README.md` and `CLAUDE.md` instead. Numbers below were
 > measured with the pre-reorganization harness; see the README for the current
-> reproduction and how they compare.
+> reproduction and how they compare. The paper PDFs it mentions (`DREAM.pdf`,
+> `LeakyHammer.pdf`) were removed from the repository; get them from the
+> original sources (arXiv 2503.17891 for LeakyHammer, ISCA '25 for DREAM).
 
 # AGENTS.md — LeakyHammer + DREAM-C User-Sys Workspace
 

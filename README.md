@@ -4,9 +4,9 @@ Covert channels against RowHammer defenses, simulated on gem5 + Ramulator2.
 This repository extends the artifact of the MICRO 2025 paper
 [*Understanding and Mitigating Covert and Side Channel Vulnerabilities
 Introduced by RowHammer Defenses*](https://arxiv.org/abs/2503.17891)
-(original README: [ARTIFACT_README.md](ARTIFACT_README.md)) to ask whether two
+([original artifact](https://github.com/CMU-SAFARI/LeakyHammer)) to ask whether two
 newer defenses, **DREAM-C** and **RRS**, are as leaky as the standardized PRAC
-and RFM. The write-up is in `base-project-report.pdf` (not tracked).
+and RFM. The course report that accompanies this work is not part of the repository.
 
 | Defense | Ramulator2 plugin | Attack programs |
 |---|---|---|
@@ -17,22 +17,35 @@ and RFM. The write-up is in `base-project-report.pdf` (not tracked).
 ## Layout
 
 ```
-src/leakyhammer/        importable core (Python 3.8)
-    defenses.py           the defense registry: one entry per defense
-    sim.py                builds and runs gem5 commands
-    metrics.py            log parsing, BER, capacity
-    results.py            result store (results/<experiment>/<batch>/<trial>/)
-    attacks/              guest-side C++ (per defense) + build.py
-    plotting/             one function per figure
-    experiments/          noise_sweep, poc, latency_profile (main / run / plot)
-tests/                  unit tests; tests/experiments/ for the experiments
-tools/                  build, lint, gem5-diff
+gem5/                   code that must be integrated inside the simulator
+src/leakyhammer/        importable Python + the C++ programs run on the simulator
+    defenses.py, sim.py, metrics.py, results.py, config.py   (the core library)
+    attacks/              guest-side C++ per defense, and the code that builds it
+    experiments/<name>/   programs that produce results (see below)
+tests/                  unit, integration and experiment tiers
+tools/                  build, compile-attacks, lint, gem5-diff
 docs/                   how-tos and the historical project notes
-gem5/                   vendored gem5 24.0 + Ramulator2 (see gem5/PATCHES.md)
 ```
 
-First-party code is in `src/`; the simulator is a vendored dependency whose
-changes are listed in [gem5/PATCHES.md](gem5/PATCHES.md).
+Future contributors should follow this structure:
+
+- **`gem5/`**: code that must be integrated *inside the simulator* (vendored
+  gem5 24.0 + Ramulator2; see [gem5/PATCHES.md](gem5/PATCHES.md)). Programs that
+  run *on* the simulator do not go here.
+- **`src/leakyhammer/`**: importable Python and the non-importable C++ programs
+  that run on the simulator. By itself it has no `main` functions and produces
+  no results or figures. It holds the utilities for driving gem5: building,
+  running, and reading stats.
+- **`src/leakyhammer/experiments/`**: programs that *produce results*. Each
+  experiment `<foo>/` has:
+  - `README.md`: how to run it and what data it provides;
+  - `main.py`: generates a *single* artifact;
+  - `configs/<config>.yaml`: describes a *sweep* of artifacts;
+  - `run.py`: generates the sweep; `--config` is required;
+  - `plot.py`: draws the figures for a sweep; `--config` is required.
+- **`tests/`**: divided into `unit` (fast, no simulator), `integration` (core
+  library against a real gem5) and `experiment` (an experiment end to end)
+  tiers. See [tests/README.md](tests/README.md).
 
 ## Setup
 
@@ -67,7 +80,8 @@ The gem5 link takes tens of minutes. `tools/build` stops on any failure.
 
 ```bash
 # Proof of concept: send a short message through each defense (~1 minute).
-.venv/bin/python -m leakyhammer.experiments.poc.run
+.venv/bin/python -m leakyhammer.experiments.poc.run --config default
+.venv/bin/python -m leakyhammer.experiments.poc.plot --config default
 
 # Full BER/capacity sweep: 68 simulations, ~7 minutes each, 3 GB RAM each.
 .venv/bin/python -m leakyhammer.experiments.noise_sweep.run --config default -j 32
@@ -85,13 +99,16 @@ repeat exactly):
 
 Other configs: `quick` (17 runs), `dream_threshold` (the T_TH sweep),
 `rrs_threshold`. Add `--dry-run` to print one shell command per trial for your
-own scheduler. Results go to `results/`; see [docs/experiments.md](docs/experiments.md).
+own scheduler. Results go to `results/`. Each experiment's own README
+(`src/leakyhammer/experiments/<name>/README.md`) says how to run it and what it
+measures; [docs/experiments.md](docs/experiments.md) describes the shared record format.
 
 ## Tests and lint
 
 ```bash
-uv run pytest -m "not slow"        # unit tests, seconds, no simulator needed
-uv run pytest -m integration       # real DREAM/RFM POCs; needs tools/build first
+uv run pytest                      # everything; tiers that need gem5 skip if it is not built
+uv run pytest -m "not slow"        # unit tests only: seconds, no simulator needed
+uv run pytest -m "integration or experiment"   # real simulations; needs tools/build first
 tools/lint
 ```
 
