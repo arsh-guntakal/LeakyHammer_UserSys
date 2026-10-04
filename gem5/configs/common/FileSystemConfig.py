@@ -264,17 +264,19 @@ def register_cache(level, idu_type, size, line_size, assoc, cpus):
 
 
 def _redirect_paths(options):
-    # Redirect filesystem syscalls from src to the first matching dests
+    # Redirect filesystem syscalls from src to the first matching dests.
+    # Must use the same directory config_filesystem() wrote the fs/ tree into
+    # (--m5-outdir if given). Using m5.options.outdir unconditionally pointed
+    # at a stale, shared m5out/fs, and segfaulted gem5 when that did not exist.
+    outdir = (
+        options.m5_outdir
+        if options is not None and getattr(options, "m5_outdir", None)
+        else m5.options.outdir
+    )
     redirect_paths = [
-        RedirectPath(
-            app_path="/proc", host_paths=[f"{m5.options.outdir}/fs/proc"]
-        ),
-        RedirectPath(
-            app_path="/sys", host_paths=[f"{m5.options.outdir}/fs/sys"]
-        ),
-        RedirectPath(
-            app_path="/tmp", host_paths=[f"{m5.options.outdir}/fs/tmp"]
-        ),
+        RedirectPath(app_path="/proc", host_paths=[f"{outdir}/fs/proc"]),
+        RedirectPath(app_path="/sys", host_paths=[f"{outdir}/fs/sys"]),
+        RedirectPath(app_path="/tmp", host_paths=[f"{outdir}/fs/tmp"]),
     ]
 
     # Setting the redirect paths so that the guest dynamic linker

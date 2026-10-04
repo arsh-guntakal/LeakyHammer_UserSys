@@ -1,5 +1,9 @@
 import os
 import re
+
+# Headless-safe: plotters run as subprocesses and inherit this. Without it
+# matplotlib tries the Tk backend and crashes on machines with no display.
+os.environ.setdefault("MPLBACKEND", "Agg")
 import pandas as pd
 import numpy as np
 
@@ -46,7 +50,9 @@ def print_results(preset):
     runtime_second = avg_time / 1000 / 1000 / 1000
     raw_bit_rate = (MSG_BYTES * 8) / runtime_second / 1024
     avg_error_rate = df['errors'].mean() / (MSG_BYTES * 8)
-    print(f"{preset} Raw Bit Rate (Kbps): {raw_bit_rate:.3f}, mean BER: {avg_error_rate:.4f}")
+    channel_capacity = raw_bit_rate * (1 - entropy(avg_error_rate))
+    print(f"{preset} Raw Bit Rate (Kbps): {raw_bit_rate:.3f}, mean BER: {avg_error_rate:.4f}, "
+          f"capacity (Kbps): {channel_capacity:.3f}")
 
 def print_results_noise(preset):
     df = pd.read_csv(f"{BASE_DIR}/results/noise_ber_{preset.lower()}.csv",
@@ -64,11 +70,13 @@ def main():
     parse_simulations("PRAC")
     parse_simulations("RFM")
     parse_simulations("DREAM")
-    print("Results for baseline PRAC, RFM, and DREAM:")
+    parse_simulations("RRS")
+    print("Results for baseline PRAC, RFM, DREAM, and RRS:")
     print_results("PRAC")
     print_results("RFM")
     print_results("DREAM")
-    
+    print_results("RRS")
+
     parse_simulations("PRAC", is_noise=True)
     parse_simulations("RFM", is_noise=True)
     parse_simulations("DREAM", is_noise=True)
