@@ -1,0 +1,11 @@
+# DREAM-C threshold sweep over the paper's T_TH range (T_RH/2 for T_RH in
+# 125..1000), plus the sub-paper T_TH=40 the report uses as the attacker's
+# best case. 80 simulations; this takes over an hour even on a large machine.
+patterns: ["0x00", "0x55", "0xAA", "0xFF"]
+msg_bytes: 100
+variants:
+  - {defense: dream, overrides: {threshold: 40}}
+  - {defense: dream, overrides: {threshold: 62}}
+  - {defense: dream, overrides: {threshold: 125}}
+  - {defense: dream, overrides: {threshold: 250}}
+  - {defense: dream, overrides: {threshold: 500}}

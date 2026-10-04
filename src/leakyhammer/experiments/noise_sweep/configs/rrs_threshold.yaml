@@ -1,0 +1,7 @@
+# RRS swap-threshold sweep: the report's two values (40 is the attacker's
+# best case). 32 simulations.
+patterns: ["0x00", "0x55", "0xAA", "0xFF"]
+msg_bytes: 100
+variants:
+  - {defense: rrs, overrides: {rss_threshold: 40}}
+  - {defense: rrs, overrides: {rss_threshold: 50}}

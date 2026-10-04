@@ -1,0 +1,8 @@
+# A small smoke-test subset: one data pattern per defense (17 simulations).
+patterns: ["0x00"]
+msg_bytes: 100
+variants:
+  - defense: prac
+  - defense: rfm
+  - defense: dream
+  - defense: rrs

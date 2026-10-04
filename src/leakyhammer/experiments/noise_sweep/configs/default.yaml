@@ -1,0 +1,9 @@
+# The full matrix of the report: every defense, four data patterns, a
+# no-noise baseline plus each defense's noise rates. 68 simulations.
+patterns: ["0x00", "0x55", "0xAA", "0xFF"]
+msg_bytes: 100
+variants:
+  - defense: prac
+  - defense: rfm
+  - defense: dream
+  - defense: rrs
