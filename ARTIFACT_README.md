@@ -1,3 +1,9 @@
+> **Note (this fork).** This is the original artifact README. Its commands
+> (`container_setup.sh`, `gem5/result-scripts`, the Slurm scripts) describe the
+> original layout and were replaced when this repository was reorganized; see
+> [README.md](README.md) for the current workflow. It is kept for the paper
+> context, the artifact's goals, and the website-fingerprinting description.
+
 # Artifact for LeakyHammer
 
 This repository contains the source code of LeakyHammer, our [MICRO'25 paper](https://arxiv.org/pdf/2503.17891). 
