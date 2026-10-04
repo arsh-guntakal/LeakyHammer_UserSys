@@ -98,11 +98,11 @@ def get_preset_variables(preset, is_noise=False):
       if is_noise:
           ACCESS_RATES = [200, 263, 325]
       return RESULT_DIR, CFG_FILE, SENDER, RECEIVER, TXN_PERIOD, ACCESS_RATES
-  elif preset == "SRS":
+  elif preset == "RRS":
       RESULT_DIR = f"{BASE_DIR}/results/{preset.lower()}/{result_subdir}"
-      CFG_FILE = f"{BASE_DIR}/configs/rhsc/ramulator/srs.yaml"
-      SENDER = f"{BASE_DIR}/attack-binaries/srs_sender"
-      RECEIVER = f"{BASE_DIR}/attack-binaries/srs_receiver"
+      CFG_FILE = f"{BASE_DIR}/configs/rhsc/ramulator/rrs.yaml"
+      SENDER = f"{BASE_DIR}/attack-binaries/rrs_sender"
+      RECEIVER = f"{BASE_DIR}/attack-binaries/rrs_receiver"
       TXN_PERIOD = 20000
       if is_noise:
           ACCESS_RATES = [200, 263, 325]
