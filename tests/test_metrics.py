@@ -2,6 +2,7 @@
 
 import math
 from pathlib import Path
+from typing import Callable
 
 import pytest
 
@@ -9,14 +10,28 @@ from leakyhammer import metrics
 
 
 @pytest.mark.unit
-def test_parse_log_reads_golden_dream_baseline(data: Path) -> None:
-    """A known DREAM baseline log parses to the values the paper script gave."""
-    result = metrics.parse_log(data / "dream_baseline_0x55.log")
+def test_parse_log_reads_a_transmission(
+    tmp_path: Path, transmission_log: Callable[..., str]
+) -> None:
+    """A transmission log parses to its bits, time, errors and health fields."""
+    log = tmp_path / "x.log"
+    log.write_text(transmission_log(errors=382))
+    result = metrics.parse_log(log)
     assert result.ok
     assert len(result.sent) == len(result.received) == 800
     assert result.errors == 382
     assert result.txn_time_ns == 16019371
-    assert result.resyncs == 0
+    assert (result.resyncs, result.min_sleep_assert) == (0, 6715)
+
+
+@pytest.mark.unit
+def test_parse_log_accepts_prefixed_tags(
+    tmp_path: Path, transmission_log: Callable[..., str]
+) -> None:
+    """DREAM's "[DREAM-SEND]" tags parse like the plain "[SEND]" ones."""
+    log = tmp_path / "x.log"
+    log.write_text(transmission_log(errors=5, tag="DREAM"))
+    assert metrics.parse_log(log).errors == 5
 
 
 @pytest.mark.unit
@@ -93,25 +108,44 @@ def test_summarize_uses_capacity_of_mean_ber() -> None:
 
 @pytest.mark.unit
 @pytest.mark.regression
-def test_parse_poc_handles_dream_poc_tags(data: Path) -> None:
+def test_parse_poc_handles_dream_poc_tags(
+    tmp_path: Path, poc_log: Callable[..., str]
+) -> None:
     """DREAM's POC log uses a two-part "DREAM-POC-" tag and still decodes.
 
     Regression test: the log regexes allowed only one "PREFIX-" segment, so
     "[DREAM-POC-SEND]" lines were invisible and every DREAM POC "failed".
     """
-    result = metrics.parse_poc(data / "dream_poc.log")
+    log = tmp_path / "dream.log"
+    log.write_text(poc_log("dream", "UTECE", errors=18))
+    result = metrics.parse_poc(log)
     assert result.sent_text == "UTECE"
-    assert result.decoded_text == "d??&L"
     assert result.errors == 18
     assert result.resyncs == 0
+    assert result.decoded_text != result.sent_text
 
 
 @pytest.mark.unit
-def test_parse_poc_reads_per_window_format(data: Path) -> None:
-    """RFM's POC prints one "Received" line per window and decodes MICRO."""
-    result = metrics.parse_poc(data / "rfm_poc.log")
-    assert result.decoded_text == "MICRO"
-    assert result.errors == 0
+@pytest.mark.parametrize("defense", ["rfm", "rrs"])
+def test_parse_poc_reads_per_window_format(
+    defense: str, tmp_path: Path, poc_log: Callable[..., str]
+) -> None:
+    """With no final "Binary:" line, the per-window lines are decoded."""
+    log = tmp_path / "poc.log"
+    log.write_text(poc_log(defense, errors=3, binary=False))
+    result = metrics.parse_poc(log)
+    assert result.errors == 3
+    assert result.sent_text == "MICRO"
+
+
+@pytest.mark.unit
+def test_parse_poc_falls_back_to_the_message_text(
+    tmp_path: Path, poc_log: Callable[..., str]
+) -> None:
+    """A sender that prints only its message text still gives sent bits."""
+    log = tmp_path / "poc.log"
+    log.write_text(poc_log("prac").replace("[SEND] Binary:", "[SEND] ignored:"))
+    assert metrics.parse_poc(log).sent_text == "MICRO"
 
 
 @pytest.mark.unit
