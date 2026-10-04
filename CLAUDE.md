@@ -39,7 +39,7 @@ before considering a change done. `tests/test_lint.py` fails otherwise.
   `compile-attacks`, `lint`, `gem5-diff`. Command lines live here or in an
   experiment, never in the core library.
 - `docs/`: how-tos (`adding-a-defense.md`, `experiments.md`) and the
-  historical project notes (`dream-history.md`).
+  DREAM-C design and results (`dream-c.md`).
 - Generated and gitignored: `build/`, `results/`, `.venv/`, `gem5/build/`.
 
 ## Python

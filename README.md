@@ -117,8 +117,8 @@ tools/lint
 - A new defense: [docs/adding-a-defense.md](docs/adding-a-defense.md).
 - A new experiment, config format, result layout: [docs/experiments.md](docs/experiments.md).
 - Conventions and what to test: [CLAUDE.md](CLAUDE.md).
-- DREAM-C design notes and the original result tables:
-  [docs/dream-history.md](docs/dream-history.md) (historical; paths are stale).
+- How DREAM-C is modeled and attacked, its results, and open questions:
+  [docs/dream-c.md](docs/dream-c.md).
 
 Results are deterministic but depend on the guest's memory layout, so three
 things you would not expect to matter do: the attack programs' compiler (plain
@@ -155,9 +155,9 @@ the measurements made before this repository was reorganized (see
   `RRS_SWAP_CAP_NS = 3000` band marked TODO, a threshold of 50 in `rrs.yaml`,
   and no drift fix in the RRS receiver. Exact RRS replication is open work.
 - The DREAM-C T_TH sweep (62/125/250/500) is the `dream_threshold` config
-  (80 runs). Its results are in the historical notes
-  ([docs/dream-history.md](docs/dream-history.md), section 6.1) and have not been
-  re-run since the reorganization.
+  (80 runs). Its earlier results are tabulated in
+  [docs/dream-c.md](docs/dream-c.md) and have not been re-run since the
+  reorganization.
 
 ## What was verified
 

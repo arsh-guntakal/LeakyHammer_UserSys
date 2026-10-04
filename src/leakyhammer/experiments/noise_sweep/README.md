@@ -47,6 +47,15 @@ for your own scheduler.
 Keys: `variants` (a `defense`, optional plugin `overrides`, optional
 `noise_rates`), `patterns`, `msg_bytes`, `baseline`, `noise`.
 
+## Choosing noise rates
+
+The figure reports capacity at a reference intensity (88% for PRAC, 50% for the
+others), where intensity is each rate's position between the smallest and
+largest rate in the sweep. The sweep must therefore contain a rate that lands
+within 1% of that point, or the figure fails with an `IndexError`. The defaults
+(PRAC 275/475/1075/1975, others 200/263/325) were chosen so 475 and 263 hit it;
+if you change `noise_rates`, check this first.
+
 ## Output
 
 `results/noise_sweep/<batch>/<trial>/` holds the raw log and `result.json`

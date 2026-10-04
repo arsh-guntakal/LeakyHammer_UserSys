@@ -41,7 +41,7 @@ the DREAM-C work:
 
 - `src/dram_controller/impl/plugin/dream.cpp`: the DREAM-C defense plugin
   (listed in `src/dram_controller/CMakeLists.txt`).
-- `src/dram/impl/DDR5-VRR.cpp`: comment only; see `AGENTS.md` for why the
+- `src/dram/impl/DDR5-VRR.cpp`: comment only; see `docs/dream-c.md` for why the
   DRFM timing inflation was reverted.
 
 `rrs.cpp` (Randomized Row-Swap) came with the original LeakyHammer artifact.

@@ -86,7 +86,7 @@ public:
         // the bank index whenever bg or ba changed independently (e.g. the
         // DREAM sender's two-bank gang collision). PRAC/RFM/noise binaries pin
         // (bg=7,ba=3) -> all-1s bit pattern, which is invariant under the
-        // swap, so they were unaffected. See AGENTS.md changelog.
+        // swap, so they were unaffected. See docs/dream-c.md.
         int ch_off   = TX_BITS;
         int col_off  = ch_off + n_ch_bits;
         int rank_off = col_off + n_col_bits;
