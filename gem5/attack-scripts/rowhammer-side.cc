@@ -684,3 +684,78 @@ bool prac_trefi_receive(std::vector<char*>& row_ptrs, uint32_t timeout, uint32_t
     }
     return false;
 }
+
+void srs_send(std::vector<char*>& row_ptrs, uint32_t timeout) {
+    uint64_t start = m5_rpns();
+
+    // Use 2 aggressors to force ACTs, not row hits
+    size_t idx = 0;
+    size_t n = row_ptrs.size();
+
+    while (m5_rpns() - start < timeout) {
+        char* target = row_ptrs[idx];
+        idx++;
+        if (idx >= n) idx = 0;
+
+        asm volatile("clflush (%0)" : : "r"(target) : "memory");
+
+        uint64_t ns1 = m5_rpns();
+        *(volatile char*)target;
+        uint64_t ns2 = m5_rpns();
+
+        uint64_t lat = ns2 - ns1;
+
+        // swap detected
+        if (lat > SRS_SWAP_CAP_NS && lat < SRS_PERIODIC_CAP_NS) {
+            return;
+        }
+    }
+}
+
+
+bool srs_receive(std::vector<char*>& row_ptrs, uint32_t timeout) {
+    uint64_t start = m5_rpns();
+
+    char* probe = row_ptrs[0];
+    int swap_ctr = 0;
+
+    while (m5_rpns() - start < timeout) {
+        asm volatile("clflush (%0)" : : "r"(probe) : "memory");
+
+        uint64_t ns1 = m5_rpns();
+        *(volatile char*)probe;
+        uint64_t ns2 = m5_rpns();
+
+        uint64_t lat = ns2 - ns1;
+
+        if (lat > SRS_SWAP_CAP_NS && lat < SRS_PERIODIC_CAP_NS) {
+            swap_ctr++;
+        }
+    }
+
+    return swap_ctr > SRS_ASSERT_THRESH;
+}
+
+bool srs_receive_poc(std::vector<char*>& row_ptrs, uint32_t timeout) {
+    uint64_t start = m5_rpns();
+
+    char* probe = row_ptrs[0];
+    int swap_ctr = 0;
+
+    while (m5_rpns() - start < timeout) {
+        asm volatile("clflush (%0)" : : "r"(probe) : "memory");
+
+        uint64_t ns1 = m5_rpns();
+        *(volatile char*)probe;
+        uint64_t ns2 = m5_rpns();
+
+        uint64_t lat = ns2 - ns1;
+
+        if (lat > SRS_SWAP_CAP_NS && lat < SRS_PERIODIC_CAP_NS) {
+            swap_ctr++;
+        }
+    }
+
+    std::printf("[RECV] Received: %d (%d SWAPs)\n", swap_ctr > SRS_ASSERT_THRESH, swap_ctr); FLUSH();
+    return swap_ctr > SRS_ASSERT_THRESH;
+}

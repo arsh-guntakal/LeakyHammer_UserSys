@@ -72,11 +72,13 @@ def main():
     parse_simulations("PRAC", is_noise=True)
     parse_simulations("RFM", is_noise=True)
     parse_simulations("DREAM", is_noise=True)
+    parse_simulations("SRS", is_noise=True)
 
     print("\nNoise channel summary:")
     print_results_noise("PRAC")
     print_results_noise("RFM")
     print_results_noise("DREAM")
+    print_results_noise("SRS")
 
     # run python3 plot-scripts/figure7_plotter.py results/noise_ber_rfm.csv figures/figure7.pdf 100 RFM
     subprocess.run([
@@ -96,6 +98,15 @@ def main():
         f"{BASE_DIR}/figures/figure7_dream.pdf",
         str(MSG_BYTES),
         "DREAM"
+    ])
+
+    subprocess.run([
+        "python3",
+        f"{BASE_DIR}/plot-scripts/figure7_plotter.py",
+        f"{BASE_DIR}/results/noise_ber_srs.csv",
+        f"{BASE_DIR}/figures/figure7_srs.pdf",
+        str(MSG_BYTES),
+        "SRS"
     ])
 
     # run python3 plot-scripts/figure4_plotter.py results/noise_ber_prac.csv figures/figure4.pdf 100

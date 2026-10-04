@@ -1,0 +1,39 @@
+Frontend:
+  impl: GEM5
+  clock_ratio: 8
+
+MemorySystem:
+  impl: BHDRAMSystem
+  clock_ratio: 3
+
+  DRAM:
+    impl: DDR5-VRR
+    org:
+      preset: DDR5_16Gb_x8
+      channel: 1
+      rank: 2
+    timing:
+      preset: DDR5_3200AN 
+    RFM:
+      BRC: 2
+
+  BHDRAMController:
+    impl: BHDRAMController
+    BHScheduler:
+      impl: BHScheduler
+    RefreshManager:
+      impl: AllBank
+    RowPolicy:
+      impl: ClosedRowPolicy
+      cap: 16
+    plugins:
+      - ControllerPlugin:
+          impl: SRS
+          num_hrt_entries: 1700
+          num_rit_entries: 6800
+          rss_threshold: 50
+          debug: false
+
+
+  AddrMapper:
+    impl: RoBaRaCoCh_with_rit

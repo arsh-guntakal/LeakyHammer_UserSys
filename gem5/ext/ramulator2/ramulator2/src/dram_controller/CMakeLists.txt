@@ -39,6 +39,7 @@ target_sources(
   impl/plugin/rfm_manager.cpp
   impl/plugin/schelper.cpp
   impl/plugin/dream.cpp
+  impl/plugin/srs.cpp
 
   impl/plugin/blockhammer/blockhammer_throttler.h 
   impl/plugin/blockhammer/blockhammer_util.h 

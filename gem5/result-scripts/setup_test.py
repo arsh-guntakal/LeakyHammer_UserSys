@@ -30,7 +30,7 @@ def create_run_scripts(command, sim_result_file_path, slurm_job_name):
 
 def get_baseline_run_commands():
     run_scripts = []
-    test_presets = ["PRAC", "RFM", "DREAM"]
+    test_presets = ["PRAC", "RFM", "DREAM", "SRS"]
     rate = 0
     for preset in test_presets:
       RESULT_DIR, CFG_FILE, SENDER, RECEIVER, TXN_PERIOD, ACCESS_RATES = get_preset_variables(preset)
@@ -79,7 +79,7 @@ def get_baseline_run_commands():
 
 def get_noise_run_commands():
     run_scripts = []
-    test_presets = ["PRAC", "RFM", "DREAM"]
+    test_presets = ["PRAC", "RFM", "DREAM", "SRS"]
     for preset in test_presets:
       RESULT_DIR, CFG_FILE, SENDER, RECEIVER, TXN_PERIOD, ACCESS_RATES = get_preset_variables(preset, is_noise=True)
       if not os.path.isdir(RESULT_DIR):

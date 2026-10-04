@@ -79,3 +79,20 @@ else
   echo "[INFO] Figure 6 already exists, skipping generation"
 fi
 
+# check if $FIGURES_DIR/srs_poc_figure.pdf doesnt exist
+if [ ! -f "$FIGURES_DIR/srs_poc_figure.pdf" ]; then
+  echo "[INFO] SRS POC figure does not exist, generating it"
+
+  echo "[INFO] Generating SRS POC results"
+  sh $COMPILE_SCRIPTS_DIR/recompile-srs-poc.sh
+
+  ./build/X86/gem5.opt ./configs/deprecated/example/se.py --num-cpu=2 --cpu-type=O3CPU --sys-clock=1GHz --cpu-clock=3GHz --mem-type=Ramulator2 --mem-size=8GB --caches --l2cache --num-l2caches=1 --l1d_size=32kB --l1i_size=32kB --l2_size=4MB --l1d_assoc=8 --l1i_assoc=8 --l2_assoc=16 --cacheline_size=64 --ramulator-config=$HOME_DIR/configs/rhsc/ramulator/srs.yaml --cmd="./attack-binaries/srs_poc_sender;./attack-binaries/srs_poc_receiver" --options="20000 5 aa;20000 5 aa;" > $RESULTS_DIR/srs_poc.log
+
+  echo "[INFO] Generating SRS POC figure"
+  python3 $PLOT_SCRIPTS_DIR/srs_poc_plotter.py $RESULTS_DIR/srs_poc.log $FIGURES_DIR/srs_poc_figure.pdf
+  echo "[COMPLETED] SRS POC figure generated at $FIGURES_DIR/srs_poc_figure.pdf"
+
+else
+  echo "[INFO] SRS POC figure already exists, skipping generation"
+fi
+
