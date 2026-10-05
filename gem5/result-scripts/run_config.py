@@ -98,8 +98,8 @@ def get_preset_variables(preset, is_noise=False):
       if is_noise:
           ACCESS_RATES = [200, 263, 325]
       return RESULT_DIR, CFG_FILE, SENDER, RECEIVER, TXN_PERIOD, ACCESS_RATES
-  elif preset == "SRS":
-      RESULT_DIR = f"{BASE_DIR}/results/{preset.lower()}/{result_subdir}"
+  elif preset == "SRS" or preset == "RRS":
+      RESULT_DIR = f"{BASE_DIR}/results/srs/{result_subdir}"
       CFG_FILE = f"{BASE_DIR}/configs/rhsc/ramulator/srs.yaml"
       SENDER = f"{BASE_DIR}/attack-binaries/srs_sender"
       RECEIVER = f"{BASE_DIR}/attack-binaries/srs_receiver"
@@ -166,8 +166,11 @@ FIX_YOUR_CODE_ERROR = 31
 
 
 
+_FILE_PRESET_MAP = {"RRS": "SRS"}
+
 def make_stat_str(preset, txn_period, msg_bytes, data_pattern, rate):
-    return f"t{txn_period}_{msg_bytes}b_p{data_pattern}_r{rate}d_{preset.lower()}"
+    file_preset = _FILE_PRESET_MAP.get(preset, preset)
+    return f"t{txn_period}_{msg_bytes}b_p{data_pattern}_r{rate}d_{file_preset.lower()}"
 
 def make_temp_dir(result_dir,preset, txn_period, msg_bytes, data_pattern, rate):
     return f"{result_dir}/tmpfs/tmp_{make_stat_str(preset, txn_period, msg_bytes, data_pattern, rate)}"

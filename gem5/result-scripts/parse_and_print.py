@@ -64,10 +64,12 @@ def main():
     parse_simulations("PRAC")
     parse_simulations("RFM")
     parse_simulations("DREAM")
-    print("Results for baseline PRAC, RFM, and DREAM:")
+    parse_simulations("SRS")
+    print("Results for baseline PRAC, RFM, and DREAM, SRS:")
     print_results("PRAC")
     print_results("RFM")
     print_results("DREAM")
+    print_results("SRS")
     
     parse_simulations("PRAC", is_noise=True)
     parse_simulations("RFM", is_noise=True)
