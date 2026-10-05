@@ -81,6 +81,36 @@ layout. Three things you would not expect to matter do:
 With these fixed, a program built here is byte-identical to the original
 artifact's in every loaded section (`.text`, `.rodata`, `.data`, `.eh_frame`).
 
+### Reference values
+
+Proof of concept (deterministic; `tests/integration/test_gem5.py` and the `poc`
+end-to-end test assert the first two rows):
+
+| Defense | Sent | Decoded | Bit errors |
+|---|---|---|---|
+| DREAM-C | `UTECE` | `d??&L` | 18 / 40 |
+| RFM | `MICRO` | `MICRO` | 0 / 40 |
+| PRAC | `MICRO` | `MICRO` | 0 / 40 |
+| RRS | `MICRO` | `??? ?` | 16 / 40 |
+
+The `default` noise-sweep config (68 runs), mean BER and capacity. *Default* is
+a fresh clone; *pinned* uses the original guest-path length (see below):
+
+| Defense | Kind | BER (default / pinned) | Capacity, Kbps (default / pinned) |
+|---|---|---|---|
+| PRAC | baseline | 0.0356 / 0.0356 | 30.36 / 30.36 |
+| PRAC | noise | 0.1688 / 0.1687 | 13.47 / 13.47 |
+| RFM | baseline | 0.1775 / 0.1869 | 15.87 / 14.88 |
+| RFM | noise | 0.0040 / 0.0048 | 46.95 / 46.63 |
+| DREAM-C | baseline | 0.4800 / 0.4778 | 0.056 / 0.069 |
+| DREAM-C | noise | 0.4721 / 0.4695 | 0.110 / 0.131 |
+| RRS | baseline | 0.4319 / 0.4309 | 0.619 / 0.635 |
+| RRS | noise | 0.4257 / 0.4257 | 0.737 / 0.738 |
+
+If a change moves a *pinned* value, something that should not matter to the
+measurement changed; if only a *default* value moves, check the guest strings
+above first.
+
 **Comparing with measurements made before the reorganization.** Those ran with
 guest programs at `/app/LeakyHammer_UserSys/gem5/attack-binaries/<name>`. The
 default `./<name>` is shorter, which shifts some results slightly (PRAC's

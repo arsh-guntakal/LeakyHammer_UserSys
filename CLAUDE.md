@@ -99,7 +99,7 @@ See `docs/experiments.md`.
      `sim.py` passes `./<name>` from a fixed working directory so the result
      does not depend on where the repo is cloned.
   Never "clean up" any of these without re-measuring against
-  `tests/test_simulation_integration.py` and the golden values in
+  `tests/integration/test_gem5.py` and the reference values in
   `docs/experiments.md`.
 - Don't change behavior that past results depend on without saying so (the
   `Defense` windows, the 32 GB memory size, the receiver timeouts).
