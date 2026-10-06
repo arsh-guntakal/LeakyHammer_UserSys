@@ -172,3 +172,19 @@ def test_run_hides_virtualenv_from_gem5(
     sim.transmission(get_defense("rfm"), "0x00", 100, tmp_path).run()
     assert "VIRTUAL_ENV" not in seen and "PYTHONHOME" not in seen
     assert seen["__cwd__"] == paths.ATTACK_BIN_DIR, "guest paths are relative"
+
+
+@pytest.mark.unit
+def test_guest_command_is_what_the_guest_is_started_with(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The recorded guest command follows the guest-directory override.
+
+    Results depend on this string's length, so each result records it.
+    """
+    monkeypatch.delenv(sim.GUEST_BIN_DIR_ENV, raising=False)
+    s = sim.transmission(get_defense("rfm"), "0x00", 100, tmp_path)
+    assert s.guest_command == "./rfm_sender;./rfm_receiver"
+    monkeypatch.setenv(sim.GUEST_BIN_DIR_ENV, "/x/y")
+    s = sim.transmission(get_defense("rfm"), "0x00", 100, tmp_path)
+    assert s.guest_command == "/x/y/rfm_sender;/x/y/rfm_receiver"

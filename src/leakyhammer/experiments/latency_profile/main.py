@@ -65,7 +65,9 @@ def run_profile(variant: Variant, batch: Path) -> Dict[str, Any]:
         "error": None,
         "params": {"defense": variant.defense},
         "provenance": results.provenance(
-            simulation.config_path, simulation.programs
+            simulation.config_path,
+            simulation.programs,
+            simulation.guest_command,
         ),
     }
     try:

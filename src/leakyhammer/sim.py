@@ -84,6 +84,12 @@ class Simulation:
         """Returns the file the simulation's output is written to."""
         return self.out_dir / "sim.log"
 
+    @property
+    def guest_command(self: "Simulation") -> str:
+        """Returns the programs gem5 starts, exactly as the guest sees them."""
+        (arg,) = [a for a in self.command if a.startswith("--cmd=")]
+        return arg[len("--cmd=") :]
+
     def shell_command(self: "Simulation") -> str:
         """Returns the command as a single shell line, redirecting output.
 

@@ -51,17 +51,21 @@ def git_revision() -> Optional[str]:
     return out.stdout.strip() or None
 
 
-def provenance(config_path: Path, programs: List[Path]) -> Dict[str, Any]:
+def provenance(
+    config_path: Path, programs: List[Path], guest_command: str
+) -> Dict[str, Any]:
     """Returns what a result depends on besides its parameters.
 
     The checked-in code revision, the exact Ramulator2 config the run used,
-    and a hash of every guest program, so a result can be tied to the build
-    that produced it.
+    a hash of every guest program, and the program string the guest was
+    started with (its length changes results), so a result can be tied to the
+    build and conditions that produced it.
     """
     return {
         "git": git_revision(),
         "config_sha256": sha256_of(config_path),
         "programs_sha256": {Path(p).name: sha256_of(p) for p in programs},
+        "guest_command": guest_command,
     }
 
 

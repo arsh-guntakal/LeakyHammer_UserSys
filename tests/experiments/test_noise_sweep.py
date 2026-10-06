@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, Optional
 
 import pytest
 
-from leakyhammer import results, sim
+from leakyhammer import paths, results, sim
 from leakyhammer.experiments.noise_sweep import main as ns
 from leakyhammer.experiments.noise_sweep import plot as nsplot
 from leakyhammer.experiments.noise_sweep import run as nsrun
@@ -102,6 +102,39 @@ def test_baseline_and_noise_can_be_selected(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
+def test_variants_can_choose_baseline_or_noise(tmp_path: Path) -> None:
+    """Per-variant switches override the sweep's, so one config can mix rows.
+
+    This is how the report's table is assembled: its RFM baseline comes from
+    a different code state than its RFM noise.
+    """
+    config = ns.load_config(
+        _write(
+            tmp_path,
+            "patterns: ['0x00']\nvariants:\n"
+            "  - {defense: rfm, baseline: false}\n"
+            "  - {defense: rfm_prerevert, noise: false}\n",
+        )
+    )
+    kinds = {
+        (t.variant.defense, t.noise_rate is None) for t in ns.trials(config)
+    }
+    assert kinds == {("rfm", False), ("rfm_prerevert", True)}
+
+
+@pytest.mark.unit
+def test_variant_with_nothing_to_run_is_rejected(tmp_path: Path) -> None:
+    """Disabling both baseline and noise for a variant is a mistake."""
+    with pytest.raises(ValueError, match="neither baseline nor noise"):
+        ns.load_config(
+            _write(
+                tmp_path,
+                "variants: [{defense: rfm, baseline: false, noise: false}]",
+            )
+        )
+
+
+@pytest.mark.unit
 def test_run_trial_records_result_and_skips_when_done(
     results_root: Path, fake_gem5: Dict[str, int]
 ) -> None:
@@ -116,7 +149,9 @@ def test_run_trial_records_result_and_skips_when_done(
         "git",
         "config_sha256",
         "programs_sha256",
+        "guest_command",
     }
+    assert record["provenance"]["guest_command"].startswith("./")
     assert fake_gem5["n"] == 1
 
     ns.run_trial(trial, batch)
@@ -267,3 +302,31 @@ def test_one_real_trial_end_to_end(
     assert len(record["sent"]) == 40
     assert record["resyncs"] == 0
     assert nsplot.report(config, batch)[1].startswith("rfm")
+
+
+@pytest.mark.experiment
+@pytest.mark.slow
+def test_prerevert_rfm_decodes_alternating_bits_without_errors(
+    results_root: Path, require_simulator: None, tmp_path: Path
+) -> None:
+    """The legacy RFM decodes 0x55 with no errors, as in the report's baseline.
+
+    The report's RFM baseline (BER 0.000) comes from the pre-revert code, and
+    the alternating pattern is the one the current RFM gets wrong, so this
+    guards the legacy variant (programs plus timing overrides) end to end.
+    """
+    if not (paths.ATTACK_BIN_DIR / "rfm_prerevert_sender").exists():
+        pytest.skip("rfm_prerevert programs are not built")
+    config = ns.load_config(
+        _write(
+            tmp_path,
+            "patterns: ['0x55']\nmsg_bytes: 25\nnoise: false\n"
+            "variants: [{defense: rfm_prerevert}]",
+        )
+    )
+    (trial,) = ns.trials(config)
+    record = ns.run_trial(trial, results.batch_dir("noise_sweep", "legacy"))
+    assert record["status"] == "ok", record["error"]
+    assert len(record["sent"]) == 200
+    assert record["errors"] == 0
+    assert record["resyncs"] == 0

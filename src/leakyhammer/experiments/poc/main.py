@@ -71,7 +71,9 @@ def run_poc(variant: Variant, batch: Path) -> Dict[str, Any]:
         "ber": None,
         "resyncs": None,
         "provenance": results.provenance(
-            simulation.config_path, simulation.programs
+            simulation.config_path,
+            simulation.programs,
+            simulation.guest_command,
         ),
     }
     try:

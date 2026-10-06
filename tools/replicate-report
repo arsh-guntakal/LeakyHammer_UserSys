@@ -1,0 +1,26 @@
+#!/bin/bash
+# Reruns the measurements behind the report (Table 1 and the proofs of concept)
+# under the conditions that best reproduce its numbers. See docs/replication.md
+# for what each number was reproduced from and how close it comes.
+#
+# Usage: tools/replicate-report            # JOBS=<n> sets parallel simulations
+#
+# Needs the simulator and attack programs built first (tools/build).
+
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PY="$ROOT/.venv/bin/python"
+
+# Guest memory layout follows the program path's length, which changes results
+# by a few bits (see docs/experiments.md). The pre-reorganization measurements
+# used a 45-character directory; this fixed path has the same length and does not
+# depend on where the repository is checked out.
+GUEST_DIR=/tmp/leakyhammer-reproduction/attack-binaries
+mkdir -p "$(dirname "$GUEST_DIR")"
+ln -sfn "$ROOT/build/attack-binaries" "$GUEST_DIR"
+export LEAKYHAMMER_GUEST_BIN_DIR="$GUEST_DIR"
+
+"$PY" -m leakyhammer.experiments.poc.run --config default --batch report
+"$PY" -m leakyhammer.experiments.poc.plot --config default --batch report
+"$PY" -m leakyhammer.experiments.noise_sweep.run --config report --batch report -j "${JOBS:-4}"
+"$PY" -m leakyhammer.experiments.noise_sweep.plot --config report --batch report
