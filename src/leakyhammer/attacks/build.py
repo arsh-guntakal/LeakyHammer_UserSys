@@ -17,20 +17,24 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from leakyhammer import paths
-from leakyhammer.defenses import DEFENSES
+from leakyhammer.defenses import ALL_ROLES, DEFENSES
 
 COMMON_DIR = paths.ATTACK_SRC_DIR / "common"
 """Headers and the library source shared by every attack program."""
 
-ROLES = ("sender", "receiver", "poc_sender", "poc_receiver")
-"""Programs every defense provides, as "<role>.cc" in its directory."""
+ROLES = ALL_ROLES
+"""Programs a defense normally provides, as "<role>.cc" in its directory."""
 
 LEGACY_DIR = "./attack-scripts"
 """Directory the original artifact compiled its sources from."""
 
 
 def legacy_name(defense: str, role: str) -> str:
-    """Returns the original artifact's file name for a defense's program."""
+    """Returns the original artifact's file name for a defense's program.
+
+    "defense" is the defense's name in the original artifact's file names
+    ("Defense.legacy_stem" when it has one).
+    """
     stem = {
         "sender": f"rowhammer-{defense}-sender",
         "receiver": f"rowhammer-{defense}-receiver",
@@ -53,12 +57,15 @@ class Target:
     - legacy_name (str): the source's file name in the original artifact,
       which is embedded in the binary (see "compile_command").
     - flags (tuple[str, ...]): compiler flags.
+    - common_dir (Path): where "rowhammer-side.cc" and its headers are; a
+      legacy defense carries its own copy.
     """
 
     name: str
     source: Path
     legacy_name: str
     flags: Tuple[str, ...] = BASE_FLAGS
+    common_dir: Path = COMMON_DIR
 
     @property
     def output(self: "Target") -> Path:
@@ -69,15 +76,22 @@ class Target:
 def targets() -> Dict[str, Target]:
     """Returns every compilable program, keyed by output name."""
     found: Dict[str, Target] = {}
-    for defense in DEFENSES:
-        for role in ROLES:
-            name = f"{defense}_{role}"
-            source = paths.ATTACK_SRC_DIR / defense / f"{role}.cc"
+    for defense in DEFENSES.values():
+        own_library = (defense.source_dir / "rowhammer-side.cc").exists()
+        for role in defense.roles:
+            name = f"{defense.name}_{role}"
+            source = defense.source_dir / f"{role}.cc"
             if not source.exists():
                 raise FileNotFoundError(
-                    f"Defense '{defense}' is missing attack source {source}"
+                    f"Defense '{defense.name}' is missing attack source "
+                    f"{source}"
                 )
-            found[name] = Target(name, source, legacy_name(defense, role))
+            found[name] = Target(
+                name,
+                source,
+                legacy_name(defense.legacy_stem or defense.name, role),
+                common_dir=defense.source_dir if own_library else COMMON_DIR,
+            )
     found["mr_noise"] = Target(
         "mr_noise",
         paths.ATTACK_SRC_DIR / "noise" / "mr_noise.cc",
@@ -106,7 +120,7 @@ def _path_maps(target: Target) -> List[str]:
     """
     return [
         f"-ffile-prefix-map={paths.REPO_ROOT}=.",
-        f"-ffile-prefix-map={COMMON_DIR}={LEGACY_DIR}",
+        f"-ffile-prefix-map={target.common_dir}={LEGACY_DIR}",
         f"-ffile-prefix-map={target.source}={LEGACY_DIR}/{target.legacy_name}",
     ]
 
@@ -126,13 +140,13 @@ def compile_command(target: Target, cxx: Optional[str] = None) -> List[str]:
         *target.flags,
         *_path_maps(target),
         "-I",
-        str(COMMON_DIR),
+        str(target.common_dir),
         "-I",
         str(paths.GEM5_INCLUDE_DIR),
         "-o",
         str(target.output),
         str(target.source),
-        str(COMMON_DIR / "rowhammer-side.cc"),
+        str(target.common_dir / "rowhammer-side.cc"),
         str(paths.M5_LIB),
     ]
 
@@ -140,7 +154,7 @@ def compile_command(target: Target, cxx: Optional[str] = None) -> List[str]:
 def select(names: Sequence[str]) -> List[Target]:
     """Resolves command-line names to targets.
 
-    A name is a program ("dream_sender"), a defense ("dream", all four of its
+    A name is a program ("dream_sender"), a defense ("dream", all of its
     programs), "noise", "latency", or "all". No names means "all".
     """
     available = targets()
@@ -151,7 +165,7 @@ def select(names: Sequence[str]) -> List[Target]:
         if name in available:
             chosen[name] = available[name]
         elif name in DEFENSES:
-            for role in ROLES:
+            for role in DEFENSES[name].roles:
                 chosen[f"{name}_{role}"] = available[f"{name}_{role}"]
         elif name in ("noise", "latency"):
             program = f"mr_{name}"

@@ -61,6 +61,7 @@ _RFM_STYLE = _Style(350, 50, 10, 35, 50.0, 50)
 _STYLES = {
     "prac": _PRAC_STYLE,
     "rfm": _RFM_STYLE,
+    "rfm_prerevert": _RFM_STYLE,
     "rrs": _RFM_STYLE,
     "dream": replace(_RFM_STYLE, closed_line=None),
 }

@@ -1,0 +1,50 @@
+# RFM as it was when the report's baseline row was measured (see the timing
+# section below). Everything else is identical to rfm.yaml.
+Frontend:
+  impl: GEM5
+  clock_ratio: 8
+
+MemorySystem:
+  impl: BHDRAMSystem
+  clock_ratio: 3
+
+  DRAM:
+    impl: DDR5-VRR
+    org:
+      preset: DDR5_16Gb_x8
+      channel: 1
+      rank: 2
+    timing:
+      preset: DDR5_3200AN 
+      # Legacy: every RFM/DRFM stall is forced to 5000 memory cycles, as the
+      # commit that measured the report's RFM baseline did in DDR5-VRR.cpp
+      # (2b847b2; reverted later because it broke the RFM proof of concept).
+      # These user-provided values are applied after the derived ones, so they
+      # give exactly the old timings. Use rfm.yaml for the real RFM timings.
+      nRFM1: 5000
+      nRFM2: 5000
+      nRFMsb: 5000
+      nDRFMab: 5000
+      nDRFMsb: 5000
+    RFM:
+      BRC: 2
+
+  BHDRAMController:
+    impl: BHDRAMController
+    BHScheduler:
+      impl: BHScheduler
+    RefreshManager:
+      impl: DelayedRefresh
+      max_delays: 2
+    RowPolicy:
+      impl: ClosedRowPolicy
+      cap: 16
+    plugins:
+      - ControllerPlugin:
+          impl: RFMManager
+          rfm_thresh: 40
+      # - ControllerPlugin:
+      #     impl: SideChannelHelper
+
+  AddrMapper:
+    impl: RoBaRaCoCh_with_rit

@@ -33,9 +33,14 @@ class NoiseVariant(Variant):
 
     - noise_rates (tuple[int, ...] | None): overrides the defense's default
       noise rates when set.
+    - baseline (bool | None): include the no-noise runs for this variant;
+      None takes the sweep's setting.
+    - noise (bool | None): likewise for the noise-rate runs.
     """
 
     noise_rates: Optional[Tuple[int, ...]] = None
+    baseline: Optional[bool] = None
+    noise: Optional[bool] = None
 
     @property
     def rates(self: "NoiseVariant") -> Tuple[int, ...]:
@@ -67,13 +72,20 @@ class SweepConfig:
 
 def _noise_variant(raw: object) -> NoiseVariant:
     """Converts one entry of "variants" (validated by "parse_variant")."""
-    base = parse_variant(raw, {"noise_rates"})
+    base = parse_variant(raw, {"noise_rates", "baseline", "noise"})
     rates = raw.get("noise_rates")
     return NoiseVariant(
         base.defense,
         base.overrides,
         None if rates is None else tuple(int(r) for r in rates),
+        raw.get("baseline"),
+        raw.get("noise"),
     )
+
+
+def _wants(own: Optional[bool], default: bool) -> bool:
+    """Returns a variant's setting, falling back to the sweep's."""
+    return default if own is None else own
 
 
 def load_config(config: Union[str, Path]) -> SweepConfig:
@@ -89,8 +101,14 @@ def load_config(config: Union[str, Path]) -> SweepConfig:
         baseline=bool(raw.get("baseline", True)),
         noise=bool(raw.get("noise", True)),
     )
-    if not (loaded.baseline or loaded.noise):
-        raise ValueError(f"{name}: need 'baseline' and/or 'noise' enabled")
+    for variant in loaded.variants:
+        if not (
+            _wants(variant.baseline, loaded.baseline)
+            or _wants(variant.noise, loaded.noise)
+        ):
+            raise ValueError(
+                f"{name}: '{variant.label}' has neither baseline nor noise"
+            )
     names = [v.name for v in loaded.variants]
     if len(set(names)) != len(names):
         raise ValueError(f"{name}: duplicate variants {names}")
@@ -135,9 +153,9 @@ def trials(config: SweepConfig) -> List[Trial]:
     found = []
     for variant in config.variants:
         rates: List[Optional[int]] = []
-        if config.baseline:
+        if _wants(variant.baseline, config.baseline):
             rates.append(None)
-        if config.noise:
+        if _wants(variant.noise, config.noise):
             rates.extend(variant.rates)
         for rate in rates:
             for pattern in config.patterns:
@@ -180,7 +198,11 @@ def run_trial(
             "txn_period_ns": trial.variant.spec.txn_period_ns,
         },
         parse_log(simulation.log_path),
-        results.provenance(simulation.config_path, simulation.programs),
+        results.provenance(
+            simulation.config_path,
+            simulation.programs,
+            simulation.guest_command,
+        ),
         error,
     )
     results.save_record(trial_dir, record)

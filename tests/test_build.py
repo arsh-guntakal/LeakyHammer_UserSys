@@ -11,10 +11,10 @@ from leakyhammer.defenses import DEFENSES
 def test_targets_cover_every_defense_role_plus_helpers() -> None:
     """Every defense yields four programs, plus the noise and latency tools."""
     names = set(build.targets())
-    for defense in DEFENSES:
-        assert {f"{defense}_{role}" for role in build.ROLES} <= names
+    for defense in DEFENSES.values():
+        assert {f"{defense.name}_{role}" for role in defense.roles} <= names
     assert {"mr_noise", "mr_latency"} <= names
-    assert len(names) == 4 * len(DEFENSES) + 2
+    assert len(names) == sum(len(d.roles) for d in DEFENSES.values()) + 2
 
 
 @pytest.mark.unit
@@ -96,3 +96,22 @@ def test_compiler_ignores_cxx_environment(
     assert build.compile_command(target)[0] == "g++"
     monkeypatch.setenv("LEAKYHAMMER_CXX", "clang++")
     assert build.compile_command(target)[0] == "clang++"
+
+
+@pytest.mark.unit
+def test_legacy_defense_builds_against_its_own_library() -> None:
+    """The pre-revert RFM links its own copy of the shared sources.
+
+    Its programs must see the old latency bands, so they cannot use
+    "attacks/common", yet must embed the original artifact's file names.
+    """
+    target = build.targets()["rfm_prerevert_sender"]
+    assert (
+        target.common_dir == paths.ATTACK_SRC_DIR / "legacy" / "rfm_prerevert"
+    )
+    assert target.legacy_name == "rowhammer-rfm-sender.cc"
+    cmd = build.compile_command(target, cxx="g++")
+    assert str(target.common_dir / "rowhammer-side.cc") in cmd
+    assert str(build.COMMON_DIR / "rowhammer-side.cc") not in cmd
+    # The current RFM still uses the shared library.
+    assert build.targets()["rfm_sender"].common_dir == build.COMMON_DIR

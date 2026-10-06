@@ -11,6 +11,9 @@ from typing import Any, Dict, Mapping, Optional, Set, Tuple
 
 from leakyhammer import paths
 
+ALL_ROLES = ("sender", "receiver", "poc_sender", "poc_receiver")
+"""Programs a defense normally provides, as "<role>.cc" in its directory."""
+
 
 @dataclass(frozen=True)
 class Defense:
@@ -28,6 +31,14 @@ class Defense:
     - poc_options (str): arguments of the proof-of-concept sender and
       receiver, after the program name.
     - poc_message (str | None): text the POC transmits, when it sends text.
+    - roles (tuple[str, ...]): the programs the defense has; a legacy
+      defense may have no proof of concept.
+    - attack_dir (str | None): directory of its sources under "attacks/"
+      (default: its name). If that directory holds its own
+      "rowhammer-side.cc" the programs build against it instead of
+      "attacks/common/" (see "legacy/").
+    - legacy_stem (str | None): the defense's name in the original artifact's
+      file names, when that differs from "name".
     """
 
     name: str
@@ -37,6 +48,14 @@ class Defense:
     poc_options: str
     plugin_impl: Optional[str] = None
     poc_message: Optional[str] = None
+    roles: Tuple[str, ...] = ALL_ROLES
+    attack_dir: Optional[str] = None
+    legacy_stem: Optional[str] = None
+
+    @property
+    def source_dir(self: "Defense") -> Path:
+        """Returns the directory holding the defense's attack sources."""
+        return paths.ATTACK_SRC_DIR / (self.attack_dir or self.name)
 
     @property
     def config_path(self: "Defense") -> Path:
@@ -101,6 +120,23 @@ DEFENSES: Dict[str, Defense] = {
             poc_options="20000 5 0x00 UTECE",
             plugin_impl="DREAM",
             poc_message="UTECE",
+        ),
+        # The RFM of the report's baseline row. The commit that measured it
+        # (2b847b2) inflated every RFM stall to 5000 cycles, widened the
+        # receivers' latency bands and lowered their decision threshold, and
+        # was later reverted because it broke the RFM proof of concept. Its
+        # programs are kept verbatim in "attacks/legacy/rfm_prerevert" and the
+        # inflation is a "timing:" override in "rfm_prerevert.yaml". Do not
+        # use it as a model for new defenses.
+        Defense(
+            name="rfm_prerevert",
+            config_file="rfm_prerevert.yaml",
+            txn_period_ns=20000,
+            noise_rates=_RFM_NOISE,
+            poc_options="",
+            roles=("sender", "receiver"),
+            attack_dir="legacy/rfm_prerevert",
+            legacy_stem="rfm",
         ),
         Defense(
             name="rrs",
