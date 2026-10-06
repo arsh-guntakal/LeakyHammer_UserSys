@@ -76,32 +76,32 @@ tools/build --ramulator          # after editing a Ramulator plugin
 
 The gem5 link takes tens of minutes. `tools/build` stops on any failure.
 
-## Reproduce the results
+## Reproduce the report
 
 ```bash
-# Proof of concept: send a short message through each defense (~1 minute).
+tools/replicate-report            # JOBS=34 for a big machine; about an hour
+```
+
+This reruns the report's measurements (the four proofs of concept and the 68-run
+sweep behind its Table 1) under the conditions that best reproduce its numbers,
+and prints the table. [docs/replication.md](docs/replication.md) maps every
+reported number to the code that produced it, how close this comes, and what was
+tried where it doesn't match.
+
+To run the experiments on their own:
+
+```bash
 .venv/bin/python -m leakyhammer.experiments.poc.run --config default
 .venv/bin/python -m leakyhammer.experiments.poc.plot --config default
-
-# Full BER/capacity sweep: 68 simulations, ~7 minutes each, 3 GB RAM each.
 .venv/bin/python -m leakyhammer.experiments.noise_sweep.run --config default -j 32
 .venv/bin/python -m leakyhammer.experiments.noise_sweep.plot --config default
 ```
 
-Expected proof-of-concept results (the simulation is deterministic, so these
-repeat exactly):
-
-| Defense | Sent | Decoded | Bit errors |
-|---|---|---|---|
-| PRAC, RFM | `MICRO` | `MICRO` | 0 / 40 |
-| DREAM-C | `UTECE` | `d??&L` | 18 / 40 |
-| RRS | `MICRO` | `??? ?` | 16 / 40 |
-
-Other configs: `quick` (17 runs), `dream_threshold` (the T_TH sweep),
-`rrs_threshold`. Add `--dry-run` to print one shell command per trial for your
-own scheduler. Results go to `results/`. Each experiment's own README
-(`src/leakyhammer/experiments/<name>/README.md`) says how to run it and what it
-measures; [docs/experiments.md](docs/experiments.md) describes the shared record format.
+Other sweep configs: `quick` (17 runs), `dream_threshold`, `rrs_threshold`. Add
+`--dry-run` to print one shell command per trial for your own scheduler. Results go
+to `results/`. Each experiment's README (`src/leakyhammer/experiments/<name>/README.md`)
+says how to run it and what it measures; [docs/experiments.md](docs/experiments.md)
+describes the shared record format.
 
 ## Tests and lint
 
@@ -130,34 +130,24 @@ either. A crashed simulation is recorded as failed and never averaged in.
 
 ## Results
 
-The full 68-run matrix (`--config default`) next to the report's Table 1.
-Capacity is `raw * (1 - H(mean BER))`; "noise" is the mean over the noise rates.
-*Default* is what you get from a fresh clone; *pinned* reproduces, bit for bit,
-the measurements made before this repository was reorganized (see
-[docs/experiments.md](docs/experiments.md#reproducibility)).
+`tools/replicate-report` next to the report's Table 1. Capacity is
+`raw * (1 - H(mean BER))`; "noise" is the mean over the noise rates.
 
-| Defense | Raw Kbps | Baseline BER | Baseline cap (Kbps) | Mean noise cap (Kbps) |
+| Defense | Baseline BER | Baseline cap (Kbps) | Noise cap (Kbps) | Verdict |
 |---|---|---|---|---|
-| | report / default | report / default / pinned | report / default / pinned | report / default / pinned |
-| PRAC | 39.02 / 39.02 | 0.036 / 0.036 / 0.036 | 30.36 / 30.36 / 30.36 | 13.47 / 13.47 / 13.47 |
-| RFM | 48.77 / 48.77 | 0.000 / 0.178 / 0.187 | 48.77 / 15.87 / 14.88 | 46.71 / 46.95 / 46.63 |
-| DREAM-C (T_TH=40) | 48.77 / 48.77 | 0.478 / 0.480 / 0.478 | 0.067 / 0.056 / 0.069 | 0.130 / 0.110 / 0.131 |
-| RRS | 46.12 / 46.1 | 0.42 / 0.432 / 0.431 | 0.85 / 0.619 / 0.635 | 0.91 / 0.737 / 0.738 |
+| PRAC | 0.036 / 0.0356 | 30.36 / 30.36 | 13.47 / 13.47 | exact |
+| RFM | 0.000 / 0.0000 | 48.77 / 48.77 | 46.71 / 46.63 | baseline exact; noise within 0.2% |
+| DREAM-C (T_TH=40) | 0.478 / 0.4778 | 0.067 / 0.069 | 0.130 / 0.131 | close (1529 vs 1530 bit errors) |
+| RRS | 0.42 / 0.431 | 0.85 / 0.635 | 0.91 / 0.738 | approximate |
 
-- **PRAC and DREAM-C reproduce the report** (PRAC exactly). Both conclusions
-  hold in every mode: DREAM-C's channel is closed (capacity ~0.1 Kbps, BER ~0.48).
-- **RFM's noise capacity matches; its baseline does not.** The report lists
-  baseline BER 0.000; this code gives 0.18 (0% on `0x00`, 13-15% on `0x55`/`0xAA`,
-  43-49% on `0xFF`, depending on the guest-path mode). The project's own earlier notes recorded 0.197, so the
-  report's 0.000 looks wrong or came from a different build. Unexplained.
-- **RRS is close but not the report's numbers.** The report describes a receiver
-  calibrated to a 400-500 ns swap spike and N_TH=40; the code ships a
-  `RRS_SWAP_CAP_NS = 3000` band marked TODO, a threshold of 50 in `rrs.yaml`,
-  and no drift fix in the RRS receiver. Exact RRS replication is open work.
-- The DREAM-C T_TH sweep (62/125/250/500) is the `dream_threshold` config
-  (80 runs). Its earlier results are tabulated in
-  [docs/dream-c.md](docs/dream-c.md) and have not been re-run since the
-  reorganization.
+Each cell is *report / replicated*. The proofs of concept reproduce exactly for
+PRAC, RFM and DREAM-C (`MICRO`, `MICRO`, `d??&L` at 18/40); RRS gets 16/40 where
+the report has 14/40. The report's RFM baseline comes from an older code state
+that was later reverted as broken (kept here as `rfm_prerevert`), and its RRS
+numbers could not be recovered from history; both are explained in
+[docs/replication.md](docs/replication.md). The DREAM-C T_TH sweep is the
+`dream_threshold` config; its earlier results are in [docs/dream-c.md](docs/dream-c.md)
+and were not re-run.
 
 ## What was verified
 
