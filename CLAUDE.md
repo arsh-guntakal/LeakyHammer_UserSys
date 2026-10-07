@@ -38,7 +38,8 @@ before considering a change done. `tests/test_lint.py` fails otherwise.
 - `tools/`: command-line entry points for development: `build`,
   `compile-attacks`, `lint`, `gem5-diff`. Command lines live here or in an
   experiment, never in the core library.
-- `docs/`: how-tos (`adding-a-defense.md`, `experiments.md`), how the
+- `docs/`: how-tos (`adding-a-defense.md`, `experiments.md`,
+  `attack-validity.md`), how the
   report's numbers are reproduced (`replication.md`), and the DREAM-C design
   and results (`dream-c.md`).
 - `src/leakyhammer/attacks/legacy/`: code kept verbatim from history only so
@@ -104,6 +105,11 @@ See `docs/experiments.md`.
   Never "clean up" any of these without re-measuring against
   `tests/integration/test_gem5.py` and the reference values in
   `docs/experiments.md`.
+- A "closed channel" (BER near 0.5) needs a validity check before it is
+  believed: confirm that the sender triggers the defense, the receiver does not
+  trigger it itself, the decoder can see the signal and the two are aligned.
+  Run the `latency_histogram` experiment with its RFM positive control; see
+  `docs/attack-validity.md`.
 - Don't change behavior that past results depend on without saying so (the
   `Defense` windows, the 32 GB memory size, the receiver timeouts).
 
@@ -117,7 +123,7 @@ This project is test-driven; a change isn't done until it is tested.
 - Tiers, by marker (`conftest.py` requires every test to have one):
   - `unit`: no gem5, no compiler. Monkeypatch `Simulation.run` rather than
     starting gem5, and build the logs and tables you need with the fixtures in
-    `tests/conftest.py` (`transmission_log`, `poc_log`, `noise_csv`,
+    `tests/conftest.py` (`transmission_log`, `poc_log`,
     `latency_log`), which print the real formats. Do not commit data files:
     `tests/data/` is gitignored.
   - `integration` + `slow`: the core library against a real simulator

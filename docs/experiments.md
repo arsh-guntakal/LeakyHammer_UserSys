@@ -17,6 +17,7 @@ An experiment is a package under `src/leakyhammer/experiments/<name>/`:
 | `noise_sweep` | BER and capacity per defense, with and without background noise. | `python -m leakyhammer.experiments.noise_sweep.run --config default -j 32` |
 | `poc` | A short text message through each defense. | `python -m leakyhammer.experiments.poc.run --config default` |
 | `latency_profile` | Single-process access latency under PRAC, showing the back-off spikes. | `python -m leakyhammer.experiments.latency_profile.run --config default` |
+| `latency_histogram` | Whether a sender's activity is visible to a probing process (with an RFM positive control). | `python -m leakyhammer.experiments.latency_histogram.run --config default` |
 
 Each experiment's own `README.md` says how to run it and what data it provides.
 
@@ -88,13 +89,14 @@ end-to-end test assert the first two rows):
 
 | Defense | Sent | Decoded | Bit errors |
 |---|---|---|---|
-| DREAM-C | `UTECE` | `d??&L` | 18 / 40 |
+| DREAM-C | `UTECE` | `TTE??` | 7 / 40 |
 | RFM | `MICRO` | `MICRO` | 0 / 40 |
 | PRAC | `MICRO` | `MICRO` | 0 / 40 |
 | RRS | `MICRO` | `??? ?` | 16 / 40 |
 
 The `default` noise-sweep config (68 runs), mean BER and capacity. *Default* is
-a fresh clone; *pinned* uses the original guest-path length (see below):
+a fresh clone; *pinned* uses the original guest-path length (see below). The
+DREAM-C rows are from the corrected attack (see `docs/dream-c.md`):
 
 | Defense | Kind | BER (default / pinned) | Capacity, Kbps (default / pinned) |
 |---|---|---|---|
@@ -102,8 +104,8 @@ a fresh clone; *pinned* uses the original guest-path length (see below):
 | PRAC | noise | 0.1688 / 0.1687 | 13.47 / 13.47 |
 | RFM | baseline | 0.1775 / 0.1869 | 15.87 / 14.88 |
 | RFM | noise | 0.0040 / 0.0048 | 46.95 / 46.63 |
-| DREAM-C | baseline | 0.4800 / 0.4778 | 0.056 / 0.069 |
-| DREAM-C | noise | 0.4721 / 0.4695 | 0.110 / 0.131 |
+| DREAM-C | baseline | 0.2478 / not re-measured | 9.19 / not re-measured |
+| DREAM-C | noise | 0.2562 / not re-measured | 8.56 / not re-measured |
 | RRS | baseline | 0.4319 / 0.4309 | 0.619 / 0.635 |
 | RRS | noise | 0.4257 / 0.4257 | 0.737 / 0.738 |
 

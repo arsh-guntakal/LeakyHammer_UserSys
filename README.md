@@ -133,17 +133,19 @@ The replication in [docs/replication.md](docs/replication.md) next to the report
 |---|---|---|---|---|
 | PRAC | 0.036 / 0.0356 | 30.36 / 30.36 | 13.47 / 13.47 | exact |
 | RFM | 0.000 / 0.0000 | 48.77 / 48.77 | 46.71 / 46.63 | baseline exact; noise within 0.2% |
-| DREAM-C (T_TH=40) | 0.478 / 0.4778 | 0.067 / 0.069 | 0.130 / 0.131 | close (1529 vs 1530 bit errors) |
+| DREAM-C (T_TH=40) | 0.478 / 0.248 | 0.067 / 9.19 | 0.130 / 8.56 | differs on purpose: the report's attack was defective |
 | RRS | 0.42 / 0.431 | 0.85 / 0.635 | 0.91 / 0.738 | approximate |
 
 Each cell is *report / replicated*. The proofs of concept reproduce exactly for
-PRAC, RFM and DREAM-C (`MICRO`, `MICRO`, `d??&L` at 18/40); RRS gets 16/40 where
-the report has 14/40. The report's RFM baseline comes from an older code state
+PRAC and RFM (`MICRO`, `MICRO`); DREAM-C now decodes `UTECE` as `TTE??` at 7/40
+(the report's attack gave `d??&L` at 18/40), and RRS gets 16/40 where the report
+has 14/40. The report's RFM baseline comes from an older code state
 that was later reverted as broken (kept here as `rfm_prerevert`), and its RRS
 numbers could not be recovered from history; both are explained in
 [docs/replication.md](docs/replication.md). The DREAM-C T_TH sweep is the
-`dream_threshold` config; its earlier results are in [docs/dream-c.md](docs/dream-c.md)
-and were not re-run.
+`dream_threshold` config; its corrected results are in [docs/dream-c.md](docs/dream-c.md),
+and [docs/attack-validity.md](docs/attack-validity.md) says how to check that a
+"closed channel" result is real.
 
 ## What was verified
 
