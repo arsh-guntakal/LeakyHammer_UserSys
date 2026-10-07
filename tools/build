@@ -1,0 +1,31 @@
+#!/bin/bash
+# Builds the simulator (Ramulator2 + gem5) and the guest attack programs.
+#
+# Usage: tools/build [--ramulator] [--gem5] [--attacks] [--all] [--clean]
+#   No option means --all. JOBS=<n> sets parallelism (default: all cores).
+#
+# Run from anywhere inside the project container (see README.md).
+
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export JOBS="${JOBS:-$(nproc)}"
+
+want_ramulator=0; want_gem5=0; want_attacks=0
+if [ $# -eq 0 ]; then set -- --all; fi
+for arg in "$@"; do
+    case "$arg" in
+        --ramulator) want_ramulator=1 ;;
+        --gem5) want_gem5=1 ;;
+        --attacks) want_attacks=1 ;;
+        --all) want_ramulator=1; want_gem5=1; want_attacks=1 ;;
+        --clean) (cd "$ROOT/gem5" && ./rebuild.sh --clean); exit 0 ;;
+        *) echo "Usage: $0 [--ramulator] [--gem5] [--attacks] [--all] [--clean]"; exit 1 ;;
+    esac
+done
+
+# gem5's build must NOT run under the uv venv's Python (rebuild.sh handles it).
+if [ "$want_ramulator" = 1 ]; then (cd "$ROOT/gem5" && ./rebuild.sh --ramulator); fi
+if [ "$want_gem5" = 1 ]; then (cd "$ROOT/gem5" && ./rebuild.sh --gem5); fi
+if [ "$want_attacks" = 1 ]; then
+    "$ROOT/.venv/bin/python" "$ROOT/tools/compile-attacks" -j "$JOBS"
+fi

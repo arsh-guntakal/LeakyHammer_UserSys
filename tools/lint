@@ -1,0 +1,7 @@
+#!/bin/bash
+# Formats and lints the repository (the vendored gem5/ tree is excluded).
+
+cd "$(dirname "$0")/.." || exit 1
+echo "Linting files from \"$(pwd)\" ... "
+uv run ruff format
+uv run ruff check --fix

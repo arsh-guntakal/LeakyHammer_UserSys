@@ -1,0 +1,17 @@
+# The measurements behind the report's Table 1, 68 simulations. The report's RFM
+# row mixes two code states, so RFM appears twice: its noise capacity comes from
+# the current RFM and its baseline from the pre-revert one (see
+# docs/replication.md). Run it as docs/replication.md describes, which also pins the
+# guest program path the numbers were measured with.
+patterns: ["0x00", "0x55", "0xAA", "0xFF"]
+msg_bytes: 100
+variants:
+  - defense: prac
+  - {defense: rfm, baseline: false}
+  - {defense: rfm_prerevert, noise: false}
+  # DREAM-C at T_TH=40, the threshold in dream.yaml.
+  - defense: dream
+  # RRS at the threshold in rrs.yaml (50). The report's text says 40, but 40 gives
+  # raw 44 Kbps and BER 0.27, which matches none of its numbers; 50 matches its
+  # raw rate.
+  - defense: rrs

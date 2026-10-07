@@ -517,7 +517,7 @@ class DDR5VRR : public IDRAM, public Implementation {
       // these to 5000 mem cycles to make DREAM-C's DRFMab events more visible
       // from userspace, but that change broke the RFM POC because it pushed
       // every RFM stall outside the userspace receiver's latency band.
-      // See figures/figure6bak.pdf for the working RFM POC under these values.
+      // The RFM proof of concept decodes cleanly under these values.
 
       // DDR5 Per Row Activation Counting (PRAC)
       // when enabled, PRAC modifies a bunch of timing parameters

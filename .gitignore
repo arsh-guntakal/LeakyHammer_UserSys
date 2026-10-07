@@ -1,0 +1,37 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Container image archives
+*.tar
+
+# Generated: experiment results, compiled attack programs, scratch and golden
+# data (everything the code can regenerate).
+/results/
+/build/
+/tests/data/
+
+# Generated: the simulator build
+/gem5/build/
+/gem5/ext/ramulator2/ramulator2/build/
+/gem5/ext/ramulator2/ramulator2/libramulator.so
+/gem5/ext/ramulator2/ramulator2/ramulator2
+
+# Legacy outputs of the pre-reorganization scripts, if still on disk
+/gem5/results/
+/gem5/run_scripts/
+/gem5/run.sh
+/gem5/attack-binaries/
+/gem5/m5out/
+
+# Leftover local files from the pre-reorganization workflow (untracked earlier
+# but possibly still on disk)
+/setup_*.log
+/experiments_*.log
+/gem5/results_archive/
+/gem5/run_*.sh
+/gem5/figure6.working.pdf

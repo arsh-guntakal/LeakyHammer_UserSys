@@ -1,0 +1,7 @@
+# DREAM-C's proof of concept across the threshold range of the sweep.
+variants:
+  - {defense: dream, overrides: {threshold: 40}}
+  - {defense: dream, overrides: {threshold: 62}}
+  - {defense: dream, overrides: {threshold: 125}}
+  - {defense: dream, overrides: {threshold: 250}}
+  - {defense: dream, overrides: {threshold: 500}}

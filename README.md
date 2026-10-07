@@ -1,193 +1,161 @@
-# Artifact for LeakyHammer
+# LeakyHammer + DREAM-C + RRS
 
-This repository contains the source code of LeakyHammer, our [MICRO'25 paper](https://arxiv.org/pdf/2503.17891). 
+Covert channels against RowHammer defenses, simulated on gem5 + Ramulator2.
+This repository extends the artifact of the MICRO 2025 paper
+[*Understanding and Mitigating Covert and Side Channel Vulnerabilities
+Introduced by RowHammer Defenses*](https://arxiv.org/abs/2503.17891)
+([original artifact](https://github.com/CMU-SAFARI/LeakyHammer)) to ask whether two
+newer defenses, **DREAM-C** and **RRS**, are as leaky as the standardized PRAC
+and RFM. The course report that accompanies this work is not part of the repository.
 
-LeakyHammer is a new class of attacks that leverage the RowHammer mitigation-induced memory latency differences to establish communication channels and leak secrets.
+| Defense | Ramulator2 plugin | Attack programs |
+|---|---|---|
+| PRAC, RFM | original artifact | `src/leakyhammer/attacks/{prac,rfm}/` |
+| DREAM-C | `dream.cpp` (ours) | `src/leakyhammer/attacks/dream/` |
+| RRS | `rrs.cpp` (original artifact) | `src/leakyhammer/attacks/rrs/` |
 
-> F. Nisa Bostanci, Oguzhan Canpolat, Ataberk Olgun, İsmail Emir Yüksel, Konstantinos Kanellopoulos, Mohammad Sadrosadati, A. Giray Yağlıkçı, Onur Mutlu. "Understanding and Mitigating Covert and Side Channel Vulnerabilities Introduced by RowHammer Defenses", MICRO 2025.
+## Layout
 
-
-## 1. Prerequisites & System Requirements:
-We strongly recommend using our container image to satisfy all dependencies with the correct versions selected. Our scripts already include instructions to build the image from our Dockerfile. 
-
-### Software Requirements for Docker-based installation:
-``` 
-- Docker
-- curl
-- tar
-- Debian-based Linux distribution
 ```
-Tested versions and distributions:
-```
-- Docker version 28.1.1+1, build 068a01e
-- Podman 4.5.2
-- curl 7.81.0   
-- tar (GNU tar) 1.34
-- Kernel: 5.15.0-56-generic 
-- Dist: Ubuntu SMP 22.04.1 LTS (Jammy Jellyfish)
-                    
-```
-
-The Docker image contain all the necessary software to compile and run gem5+Ramulator2 experiments, therefore no additional system-level installation step is required. 
-
-### Getting started:
-
-Our container-based setup script (`container_setup.sh`) already builds the container image and sets up the environment without any additional steps (see instructions under Building The Simulators). To build the container image manually:
-
-```bash 
-[docker/podman] build . --no-cache --pull -t leakyhammer_artifact
+gem5/                   code that must be integrated inside the simulator
+src/leakyhammer/        importable Python + the C++ programs run on the simulator
+    defenses.py, sim.py, metrics.py, results.py, config.py   (the core library)
+    attacks/              guest-side C++ per defense, and the code that builds it
+    experiments/<name>/   programs that produce results (see below)
+tests/                  unit, integration and experiment tiers
+tools/                  build, compile-attacks, lint, gem5-diff
+docs/                   how-tos and the historical project notes
 ```
 
-#### Getting started without Docker:
+Future contributors should follow this structure:
 
-For artifact evaluation purposes (i.e., reproducing figures exactly matching with the ones presented in the paper), we **strongly recommend** using the container image to build the resources and run the experiments. 
+- **`gem5/`**: code that must be integrated *inside the simulator* (vendored
+  gem5 24.0 + Ramulator2; see [gem5/PATCHES.md](gem5/PATCHES.md)). Programs that
+  run *on* the simulator do not go here.
+- **`src/leakyhammer/`**: importable Python and the non-importable C++ programs
+  that run on the simulator. By itself it has no `main` functions and produces
+  no results or figures. It holds the utilities for driving gem5: building,
+  running, and reading stats.
+- **`src/leakyhammer/experiments/`**: programs that *produce results*. Each
+  experiment `<foo>/` has:
+  - `README.md`: how to run it and what data it provides;
+  - `main.py`: generates a *single* artifact;
+  - `configs/<config>.yaml`: describes a *sweep* of artifacts;
+  - `run.py`: generates the sweep; `--config` is required;
+  - `plot.py`: draws the figures for a sweep; `--config` is required.
+- **`tests/`**: divided into `unit` (fast, no simulator), `integration` (core
+  library against a real gem5) and `experiment` (an experiment end to end)
+  tiers. See [tests/README.md](tests/README.md).
 
-To get started with the simulators for further analyses and experiments, you can set up the environment for native execution using the `ae_install_requirements.sh` script and install all dependencies: 
+## Setup
+
+The project runs inside its container (Ubuntu 20.04, Python 3.8, g++ 9 and 10).
 
 ```bash
-./ae_install_requirements.sh
+docker build -t leakyhammer .
+# Mount the repo so edits and results persist. The mount hides the image's
+# .venv, so recreate it once with `uv sync --frozen`.
+docker run --rm -it -v "$PWD":/app/LeakyHammer_UserSys leakyhammer bash
+cd /app/LeakyHammer_UserSys && uv sync --frozen
 ```
 
-If supported (e.g., executing in a system with Linux 20.04), you can match all package versions by executing the following command instead of the previous command:
+Everything below runs inside the container from the repository root.
+
+> Keep the uv venv off `PATH` when building gem5: gem5 embeds the *system*
+> Python, and mixing the two aborts with `No module named '_contextvars'`.
+> `tools/build` handles this. The Python tools do want the venv: use
+> `uv run python -m ...` or `.venv/bin/python -m ...`.
+
+## Build (once, and after C++ changes)
 
 ```bash
-./ae_install_requirements.sh true
+JOBS=32 tools/build              # Ramulator2 + gem5 + attack programs
+tools/build --attacks            # only the attack programs (seconds)
+tools/build --ramulator          # after editing a Ramulator plugin
 ```
 
-To install only python3 dependencies with pip manually:
+The gem5 link takes tens of minutes. `tools/build` stops on any failure.
+
+## Reproduce the report
+
+[docs/replication.md](docs/replication.md) has the commands that rerun the report's
+measurements (the four proofs of concept and the 68-run sweep behind its Table 1)
+under the conditions that best reproduce its numbers, takes about an hour, and
+maps every reported number to the code that produced it, how close this comes, and
+what was tried where it doesn't match.
+
+To run the experiments on their own:
 
 ```bash
-python3 -m pip install -r requirements.txt
+.venv/bin/python -m leakyhammer.experiments.poc.run --config default
+.venv/bin/python -m leakyhammer.experiments.poc.plot --config default
+.venv/bin/python -m leakyhammer.experiments.noise_sweep.run --config default -j 32
+.venv/bin/python -m leakyhammer.experiments.noise_sweep.plot --config default
 ```
 
-## 2. Building The Simulators
-The following steps prepares the repository for the main experiments. 
+Other sweep configs: `quick` (17 runs), `dream_threshold`, `rrs_threshold`. Add
+`--dry-run` to print one shell command per trial for your own scheduler. Results go
+to `results/`. Each experiment's README (`src/leakyhammer/experiments/<name>/README.md`)
+says how to run it and what it measures; [docs/experiments.md](docs/experiments.md)
+describes the shared record format.
 
-### Using Docker
-The `container_setup.sh` script 1) builds the docker image and the simulators (gem5 and Ramulator2), 2) runs small experiments, 3) compiles the attack scripts and 4) saves the Docker image for future use.
+## Tests and lint
 
 ```bash
-cd LeakyHammer
-./container_setup.sh docker
+uv run pytest                      # everything; tiers that need gem5 skip if it is not built
+uv run pytest -m "not slow"        # unit tests only: seconds, no simulator needed
+uv run pytest -m "integration or experiment"   # real simulations; needs tools/build first
+tools/lint
 ```
 
-### Without Docker
+## Extending
 
-The `native_setup.sh` script 1) builds the simulators (gem5 and Ramulator2), 2) runs small experiments, and 3) compiles the attack scripts.
+- A new defense: [docs/adding-a-defense.md](docs/adding-a-defense.md).
+- A new experiment, config format, result layout: [docs/experiments.md](docs/experiments.md).
+- Conventions and what to test: [CLAUDE.md](CLAUDE.md).
+- How DREAM-C is modeled and attacked, its results, and open questions:
+  [docs/dream-c.md](docs/dream-c.md).
 
+Results are deterministic but depend on the guest's memory layout, so three
+things you would not expect to matter do: the attack programs' compiler (plain
+`g++` 9.4, not the container's `CXX=g++-10`), the source paths embedded in
+them, and the strings on the simulated stack (the program path and the noise
+period). The build and `sim.py` fix all three; see
+[docs/experiments.md](docs/experiments.md#reproducibility) before changing
+either. A crashed simulation is recorded as failed and never averaged in.
 
-```bash
-cd LeakyHammer
-./native_setup.sh
-```
+## Results
 
-## 3. Running The Artifact
+The replication in [docs/replication.md](docs/replication.md) next to the report's Table 1. Capacity is
+`raw * (1 - H(mean BER))`; "noise" is the mean over the noise rates.
 
-The following instructions assume the reader is using Docker. If the reader is not using Docker, please refer to the instructions at the end of the section (:fast_forward:).
+| Defense | Baseline BER | Baseline cap (Kbps) | Noise cap (Kbps) | Verdict |
+|---|---|---|---|---|
+| PRAC | 0.036 / 0.0356 | 30.36 / 30.36 | 13.47 / 13.47 | exact |
+| RFM | 0.000 / 0.0000 | 48.77 / 48.77 | 46.71 / 46.63 | baseline exact; noise within 0.2% |
+| DREAM-C (T_TH=40) | 0.478 / 0.4778 | 0.067 / 0.069 | 0.130 / 0.131 | close (1529 vs 1530 bit errors) |
+| RRS | 0.42 / 0.431 | 0.85 / 0.635 | 0.91 / 0.738 | approximate |
 
-:warning: We suggest using ```tmux``` or similar tools that enable persistent bash sessions to avoid any interruptions during the execution of the scripts.
+Each cell is *report / replicated*. The proofs of concept reproduce exactly for
+PRAC, RFM and DREAM-C (`MICRO`, `MICRO`, `d??&L` at 18/40); RRS gets 16/40 where
+the report has 14/40. The report's RFM baseline comes from an older code state
+that was later reverted as broken (kept here as `rfm_prerevert`), and its RRS
+numbers could not be recovered from history; both are explained in
+[docs/replication.md](docs/replication.md). The DREAM-C T_TH sweep is the
+`dream_threshold` config; its earlier results are in [docs/dream-c.md](docs/dream-c.md)
+and were not re-run.
 
-### Configuring the scripts
-You can review and update script configurations set in the `gem5/result-scripts/run_config.py` based on the selected execution environment. You can specify the number of concurrently running jobs, user and partition names for slurm-based execution.
+## What was verified
 
-You can quickly review the existing settings:
-
-```bash
-head -n36 ./gem5/result-scripts/run_config.py
-```
-
-### Slurm-based execution
-We strongly suggest using a Slurm-based infrastructure to enable running experiments in bulk. 
-
-
-Use the following command to schedule Slurm jobs for experiments. 
-
-
-```bash
-sh gem5/run_parallel_slurm_container.sh docker
-```
-
-This script creates the ```results``` directory and ```prac``` and ```rfm``` subdirectories for the covert channel attacks. Within each subdirectory, there should be two directories ```baseline```, and ```noise``` for the experiment results.
-
-The script then starts submitting Slurm jobs. Based on the maximum concurrently running (or scheduled) Slurm job limitation, it may stop and retry after an interval (configurable in ```run_config.py```). It terminates after submitting all jobs.
-
-### Local machine-based execution
-Use the following command to run all experiments using ThreadPoolExecutor. The number of concurrent workers is configurable in ```run_config.py```.
-
-```bash
-sh gem5/run_parallel_local_container.sh podman
-```
-
-The script creates and uses the same directories as given above. It terminates after all experiments are completed.
-
----
-:fast_forward: The reader can also run experiments **without Docker** by using `gem5/run_parallel_local.sh` (for local execution) and `gem5/run_parallel_slurm.sh` (for Slurm-based execution) scripts.
-
-:warning: Note that running the experiments in without the provided container image might compile the attack scripts with different compiler versions. This might result in slightly different data points shown in the figures based on your system configurations (e.g., compiler version) but it does not change the key observations.
-
-### ***Experiment completion***
-
-Each experiment for provided configurations takes at most 1 hour. Executing all jobs can take 2-4 hours in a compute cluster, depending on the cluster load. The reader can check the results and statistics generated by the experiments by checking the ```results/``` directory. Each experiment generates a txt file that contains its output in (```results/<config>/<experiment_type>/```). 
-
-For Slurm-based execution, check ```results/<config>/<experiment_type>/err/``` for error files if needed.
-
-### Obtaining figures and key results
-To plot all figures at once using a docker image, the reader can use the ```plot_figures_container.sh``` script.
-
-``` bash
-sh gem5/plot_figures_container.sh docker
-```
-
-In native environment, use:
-```bash
-sh gem5/plot_figures.sh
-```
-
-This script plots all figures under ```gem5/figures/``` directory and prints out a summary of the results.
-
-This command creates the following plots and their related results that are mentioned in the paper:
-
-1. ```figure2.pdf```: Figure 2
-2. ```figure3.pdf```: Figure 3
-3. ```figure4.pdf```: Figure 4
-4. ```figure6.pdf```: Figure 6
-5. ```figure7.pdf```: Figure 7
-
-
-
-## 4. File Structure
-
-```
-.
-├── ae_install_requirements.sh
-├── container_setup.sh                              # script for container-based execution setup
-├── Dockerfile                                      
-├── gem5
-│   ├── attack-scripts                              # attack codes
-│   ├── ...
-│   ├── compile_attack_scripts.sh                   # script to compile all attacks
-│   ├── ...
-│   ├── ext
-│   │   ├ramulator2                                 # Ramulator2 source code
-│   │   │ ...
-│   ├── get_all_results_local.sh                    # script that runs short-running experiments
-│   ├── ...
-│   ├── plot_figures_container.sh                   # script to plot all figures
-│   ├── plot-scripts                                # plotting scripts
-│   ├── ...
-│   ├── rebuild.sh                                  # rebuild script for simulators
-│   ├── ...
-│   ├── result-scripts                              # scripts to set up experiment directories and create runner scripts
-│   ├── results                                     # contains all results
-│   ├── run_parallel_local_container.sh             # for running parallel jobs in local machine
-│   ├── run_parallel_slurm_container.sh             # for running Slurm jobs in bulk
-│   ├── ...
-│   ├── src                                         # gem5 source code
-│   ├── ...
-├── native_setup.sh                                 # build script for native environment
-├── README.md                                       # This file
-└── requirements.txt                                # python requirements
-```
-
-## 5. Contact
-Nisa Bostanci (nisa.bostanci [at] safari [dot] ethz [dot] ch)
+The reorganization was checked against the pre-reorganization results:
+all 68 trials of the pinned matrix match the earlier measurements exactly (sent
+and received bits, time, error count), and the generated CSVs are
+byte-identical to the original harness's. The unit tests (`pytest -m "not
+slow"`) and the two integration tests pass; the DREAM and RFM POCs, the full
+matrix, the plotting path and the build all ran in the project container.
+**Not** verified: building the image from the `Dockerfile`, the `docker run`
+mount flow above, the Slurm path (use `--dry-run` to emit per-trial commands),
+the `latency` and `poc_prac` figures against the original plotters' output
+(they run on real logs, but only the other five plotters were compared
+byte for byte), and the website-fingerprinting experiments of the original
+artifact (not part of this repository's scripts).
