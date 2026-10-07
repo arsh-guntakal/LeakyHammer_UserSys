@@ -13,8 +13,8 @@ def test_targets_cover_every_defense_role_plus_helpers() -> None:
     names = set(build.targets())
     for defense in DEFENSES.values():
         assert {f"{defense.name}_{role}" for role in defense.roles} <= names
-    assert {"mr_noise", "mr_latency"} <= names
-    assert len(names) == sum(len(d.roles) for d in DEFENSES.values()) + 2
+    assert {"mr_noise", "mr_latency", "latency_histogram"} <= names
+    assert len(names) == sum(len(d.roles) for d in DEFENSES.values()) + 3
 
 
 @pytest.mark.unit
