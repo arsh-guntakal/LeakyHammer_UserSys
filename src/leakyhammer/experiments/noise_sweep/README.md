@@ -43,7 +43,7 @@ for your own scheduler.
 | `quick` | 17 | the same defenses, one data pattern |
 | `dream_threshold` | 80 | DREAM-C's threshold `T_TH` in 40/62/125/250/500 |
 | `rrs_threshold` | 32 | RRS's swap threshold in 40/50 |
-| `report` | 68 | The measurements behind the report's Table 1 (run with `tools/replicate-report`) |
+| `report` | 68 | The measurements behind the report's Table 1 (see `docs/replication.md`) |
 
 Keys: `variants` (a `defense`, optional plugin `overrides`, optional
 `noise_rates`, and optional `baseline`/`noise` switches that override the

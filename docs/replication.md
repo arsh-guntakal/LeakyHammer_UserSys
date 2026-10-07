@@ -8,11 +8,22 @@ lists what was tried.
 
 ```bash
 tools/build                  # once
-tools/replicate-report       # JOBS=34 for a big machine; about an hour
+
+# The guest program directory must have this exact 45-character length (see
+# "Conditions that change the result"); a symlink to the built programs will do.
+GUEST_DIR=/tmp/leakyhammer-reproduction/attack-binaries
+mkdir -p "$(dirname "$GUEST_DIR")" && ln -sfn "$PWD/build/attack-binaries" "$GUEST_DIR"
+export LEAKYHAMMER_GUEST_BIN_DIR="$GUEST_DIR"
+
+PY=.venv/bin/python
+$PY -m leakyhammer.experiments.poc.run --config default --batch report
+$PY -m leakyhammer.experiments.poc.plot --config default --batch report
+$PY -m leakyhammer.experiments.noise_sweep.run --config report --batch report -j 34
+$PY -m leakyhammer.experiments.noise_sweep.plot --config report --batch report
 ```
 
 This runs the four proofs of concept and the 68-run `report` sweep (7 minutes
-and 3 GB per simulation) under the conditions below, and prints Table 1.
+and 3 GB per simulation, about an hour at `-j 34`) and prints Table 1.
 
 ## Result
 
@@ -61,8 +72,8 @@ The simulation is deterministic, but it is sensitive to the guest's memory
 layout, so these were pinned (`docs/experiments.md#reproducibility` has the
 mechanism): the attack programs are built with the system `g++` 9.4 and the
 original artifact's embedded source names, and the guest is started with a
-45-character program directory (`/tmp/leakyhammer-reproduction/attack-binaries`),
-which `tools/replicate-report` creates. That length is the one the
+45-character program directory (`/tmp/leakyhammer-reproduction/attack-binaries`,
+set with `LEAKYHAMMER_GUEST_BIN_DIR` as above). That length is the one the
 pre-reorganization measurements used; it gave the closest match. Without it
 (`--config default`, relative paths) the same code gives slightly different
 numbers, for example DREAM-C's noise capacity of 0.110 instead of 0.131 Kbps.
@@ -114,4 +125,4 @@ and measured against this baseline:
   `rfm_prerevert` entry reproduce an RFM known to be unrealistic. Delete them when
   the report's RFM baseline is redone with the real RFM.
 - The RRS receiver's band, margin and threshold (`attacks/rrs/`, `rrs.yaml`).
-- `tools/replicate-report`'s pinned path exists only to match old numbers.
+- The pinned guest directory exists only to match old numbers.

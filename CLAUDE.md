@@ -36,8 +36,7 @@ before considering a change done. `tests/test_lint.py` fails otherwise.
     live in this one file); `--config` is a required argument.
 - `tests/`: unit, integration and experiment tiers (see "Tests").
 - `tools/`: command-line entry points for development: `build`,
-  `compile-attacks`, `lint`, `gem5-diff`, and `replicate-report` (reruns the
-  report's measurements; see `docs/replication.md`). Command lines live here or in an
+  `compile-attacks`, `lint`, `gem5-diff`. Command lines live here or in an
   experiment, never in the core library.
 - `docs/`: how-tos (`adding-a-defense.md`, `experiments.md`), how the
   report's numbers are reproduced (`replication.md`), and the DREAM-C design

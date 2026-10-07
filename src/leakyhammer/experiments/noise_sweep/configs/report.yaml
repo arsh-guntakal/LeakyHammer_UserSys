@@ -1,7 +1,7 @@
 # The measurements behind the report's Table 1, 68 simulations. The report's RFM
 # row mixes two code states, so RFM appears twice: its noise capacity comes from
 # the current RFM and its baseline from the pre-revert one (see
-# docs/replication.md). Run it with tools/replicate-report, which also pins the
+# docs/replication.md). Run it as docs/replication.md describes, which also pins the
 # guest program path the numbers were measured with.
 patterns: ["0x00", "0x55", "0xAA", "0xFF"]
 msg_bytes: 100

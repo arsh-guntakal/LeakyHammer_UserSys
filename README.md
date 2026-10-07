@@ -78,15 +78,11 @@ The gem5 link takes tens of minutes. `tools/build` stops on any failure.
 
 ## Reproduce the report
 
-```bash
-tools/replicate-report            # JOBS=34 for a big machine; about an hour
-```
-
-This reruns the report's measurements (the four proofs of concept and the 68-run
-sweep behind its Table 1) under the conditions that best reproduce its numbers,
-and prints the table. [docs/replication.md](docs/replication.md) maps every
-reported number to the code that produced it, how close this comes, and what was
-tried where it doesn't match.
+[docs/replication.md](docs/replication.md) has the commands that rerun the report's
+measurements (the four proofs of concept and the 68-run sweep behind its Table 1)
+under the conditions that best reproduce its numbers, takes about an hour, and
+maps every reported number to the code that produced it, how close this comes, and
+what was tried where it doesn't match.
 
 To run the experiments on their own:
 
@@ -130,7 +126,7 @@ either. A crashed simulation is recorded as failed and never averaged in.
 
 ## Results
 
-`tools/replicate-report` next to the report's Table 1. Capacity is
+The replication in [docs/replication.md](docs/replication.md) next to the report's Table 1. Capacity is
 `raw * (1 - H(mean BER))`; "noise" is the mean over the noise rates.
 
 | Defense | Baseline BER | Baseline cap (Kbps) | Noise cap (Kbps) | Verdict |
