@@ -158,12 +158,12 @@ def test_plot_command_line_draws_next_to_each_log(
 def test_dream_poc_experiment_end_to_end(
     results_root: Path, require_simulator: None
 ) -> None:
-    """The DREAM POC experiment decodes 'UTECE' as 'd??&L' (18/40) in gem5.
+    """The DREAM POC experiment decodes 'UTECE' as 'TTE??' (7/40) in gem5.
 
     The simulation is deterministic, so this exact result guards the whole
     stack: plugin, attack programs, address mapping, and harness.
     """
     record = poc.run_poc(Variant("dream"), results.batch_dir("poc", "e2e"))
     assert record["status"] == "ok", record["error"]
-    assert record["decoded_text"] == "d??&L"
-    assert (record["errors"], record["resyncs"]) == (18, 0)
+    assert record["decoded_text"] == "TTE??"
+    assert (record["errors"], record["resyncs"]) == (7, 0)

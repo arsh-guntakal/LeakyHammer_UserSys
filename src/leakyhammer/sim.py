@@ -218,19 +218,23 @@ def transmission(
     out_dir: Path,
     noise_rate: Optional[int] = None,
     config_overrides: Optional[Mapping[str, Any]] = None,
+    receiver: Optional[Path] = None,
+    receiver_args: str = "",
 ) -> Simulation:
     """Returns a simulation sending "msg_bytes" of a repeated bit pattern.
 
     - pattern: byte to repeat, as hex (e.g. "0x55").
     - noise_rate: if given, a third process generates background memory
       traffic at this many activations per window; None means no noise.
+    - receiver: a program to run instead of the defense's receiver (for
+      diagnostics); "receiver_args" are appended to its arguments.
     """
     out_dir = Path(out_dir)
     config = effective_config(defense, out_dir, config_overrides)
     window = defense.txn_period_ns
     args = f"{window} {msg_bytes} {pattern}"
-    programs: List[Path] = [defense.sender, defense.receiver]
-    options = [args, args]
+    programs: List[Path] = [defense.sender, receiver or defense.receiver]
+    options = [args, f"{args} {receiver_args}".strip()]
     num_cpu = MSG_PROCESS_COUNT
     if noise_rate is not None:
         # The generator runs for 1.5x the time the message takes to send. The
