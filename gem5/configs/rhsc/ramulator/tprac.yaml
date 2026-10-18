@@ -1,0 +1,45 @@
+Frontend:
+  impl: GEM5
+  clock_ratio: 8
+
+MemorySystem:
+  impl: BHDRAMSystem
+  clock_ratio: 3
+
+  DRAM:
+    impl: DDR5-VRR
+    org:
+      preset: DDR5_16Gb_x8
+      channel: 1
+      rank: 2
+    timing:
+      preset: DDR5_3200AN 
+    RFM:
+      BRC: 2
+    PRAC: true
+
+  BHDRAMController:
+    impl: PRACDRAMController
+    BHScheduler:
+      impl: PRACScheduler
+    RefreshManager:
+      impl: DelayedRefresh
+      max_delays: 2
+    RowPolicy:
+      impl: ClosedRowPolicy
+      cap: 16
+    plugins:
+      - ControllerPlugin:
+          impl: PRAC
+          abo_delay_acts: 4
+          abo_recovery_refs: 4
+          abo_act_ns: 180
+          abo_threshold: 128
+      - ControllerPlugin:
+          impl: TPRAC
+          tb_rfm_window_ns: 3900  # one timing-based RFMab per rank per tREFI
+      # - ControllerPlugin:
+      #     impl: SideChannelHelper
+
+  AddrMapper:
+    impl: RoBaRaCoCh_with_rit

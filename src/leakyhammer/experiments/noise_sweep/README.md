@@ -43,6 +43,7 @@ for your own scheduler.
 | `quick` | 17 | the same defenses, one data pattern |
 | `dream_threshold` | 80 | DREAM-C's threshold `T_TH` in 40/62/125/250/500 |
 | `rrs_threshold` | 32 | RRS's swap threshold in 40/50 |
+| `tprac` | 36 | TPRAC's RFM window: a no-RFM control, 3900 ns with noise, 7800/15600/31200 ns without |
 | `report` | 68 | The measurements behind the report's Table 1 (see `docs/replication.md`) |
 
 Keys: `variants` (a `defense`, optional plugin `overrides`, optional

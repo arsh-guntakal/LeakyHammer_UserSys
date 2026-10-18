@@ -1,0 +1,9 @@
+# TPRAC's proof of concept across timing-based RFM windows. The 100 ms window
+# fires no RFM during the run, so it must decode exactly like PRAC (control);
+# 3900 ns (one RFM per tREFI) is the TPRAC paper's default.
+variants:
+  - {defense: tprac, overrides: {tb_rfm_window_ns: 100000000}}
+  - {defense: tprac, overrides: {tb_rfm_window_ns: 31200}}
+  - {defense: tprac, overrides: {tb_rfm_window_ns: 15600}}
+  - {defense: tprac, overrides: {tb_rfm_window_ns: 7800}}
+  - {defense: tprac, overrides: {tb_rfm_window_ns: 3900}}

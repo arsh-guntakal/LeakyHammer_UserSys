@@ -60,6 +60,7 @@ _PRAC_STYLE = _Style(None, 30, None, 20, 87.5, 88)
 _RFM_STYLE = _Style(350, 50, 10, 35, 50.0, 50)
 _STYLES = {
     "prac": _PRAC_STYLE,
+    "tprac": _PRAC_STYLE,
     "rfm": _RFM_STYLE,
     "rfm_prerevert": _RFM_STYLE,
     "rrs": _RFM_STYLE,

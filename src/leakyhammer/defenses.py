@@ -138,6 +138,20 @@ DEFENSES: Dict[str, Defense] = {
             attack_dir="legacy/rfm_prerevert",
             legacy_stem="rfm",
         ),
+        # TPRAC is PRAC plus timing-based RFMs, attacked with PRAC's programs
+        # unchanged (same sources, same embedded paths), so any difference
+        # from PRAC is the defense's.
+        Defense(
+            name="tprac",
+            config_file="tprac.yaml",
+            txn_period_ns=25000,
+            noise_rates=_PRAC_NOISE,
+            poc_options="25000 5 aa",
+            plugin_impl="TPRAC",
+            poc_message="MICRO",
+            attack_dir="prac",
+            legacy_stem="prac",
+        ),
         Defense(
             name="rrs",
             config_file="rrs.yaml",

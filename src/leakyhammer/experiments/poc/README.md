@@ -31,6 +31,7 @@ python -m leakyhammer.experiments.poc.main --defense dream --set threshold=62
 |---|---|
 | `default` | PRAC, RFM, DREAM-C, RRS |
 | `dream_threshold` | DREAM-C at each threshold of the sweep |
+| `tprac_window` | TPRAC at each timing-based RFM window, plus a no-RFM control |
 
 ## Output
 
