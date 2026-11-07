@@ -2,8 +2,9 @@
 
 import shutil
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
+import pandas as pd
 import pytest
 
 from leakyhammer import paths, results, sim
@@ -239,44 +240,73 @@ def test_frame_has_the_columns_the_figures_read(
     assert frame.iloc[0]["errors"] == 382
 
 
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    ("defense", "rates", "knee"),
-    [
-        ("prac", (275, 475, 1075, 1975), 88),
-        ("rfm", (200, 263, 325), 50),
-        ("rrs", (200, 263, 325), 50),
-        ("dream", (200, 263, 325), 50),
-    ],
-)
-def test_capacity_figure_for_every_defense_style(
-    defense: str,
-    rates: tuple,
-    knee: int,
-    tmp_path: Path,
-    noise_csv: Callable[..., Path],
-) -> None:
-    """One function draws every defense's figure and reports its knee point."""
-    out = tmp_path / "f.pdf"
-    numbers = nsplot.plot_capacity(
-        noise_csv(tmp_path / "n.csv", rates), out, 100, defense
+def _frame(rows: List[tuple]) -> "pd.DataFrame":
+    """Builds a sweep table from (rate, errors, time_ns) rows of 800 bits."""
+    return pd.DataFrame(
+        [
+            {
+                "rate": rate,
+                "pattern": "0x55",
+                "sent": "0" * 800,
+                "received": "0" * 800,
+                "time": time,
+                "errors": errors,
+            }
+            for rate, errors, time in rows
+        ]
     )
-    assert out.stat().st_size > 1000
-    assert set(numbers) == {"capacity_at_knee", "capacity_lowest"}
 
 
 @pytest.mark.unit
-def test_capacity_figure_rejects_unknown_defense(
-    tmp_path: Path, noise_csv: Callable[..., Path]
+def test_capacity_by_rate_uses_the_mean_error_rate() -> None:
+    """Capacity per rate is raw * (1 - H(mean BER)), averaged over patterns."""
+    frame = _frame(
+        [(0, 0, 16_000_000), (0, 0, 16_000_000), (200, 400, 16_000_000)]
+    )
+    curve = nsplot.capacity_by_rate(frame, 100).set_index("rate")
+    assert curve.loc[0, "capacity_kbps"] == pytest.approx(
+        curve.loc[0, "raw_kbps"]
+    )
+    assert curve.loc[200, "ber"] == pytest.approx(0.5)
+    assert curve.loc[200, "capacity_kbps"] == pytest.approx(0.0)
+
+
+@pytest.mark.unit
+@pytest.mark.regression
+def test_capacity_at_a_rate_does_not_depend_on_the_other_rates() -> None:
+    """Dropping other noise rates from a sweep leaves a rate's value alone.
+
+    Regression test: the figure used to normalize noise to a "% intensity"
+    from the smallest and largest rate present, so its reported capacity
+    depended on which rates the sweep happened to contain, and it drew
+    reference lines copied from the paper at fixed positions.
+    """
+    full = _frame(
+        [(200, 40, 16_000_000), (263, 10, 16_000_000), (325, 0, 16_000_000)]
+    )
+    subset = full[full["rate"] != 325]
+    assert (
+        nsplot.capacity_by_rate(full, 100).set_index("rate").loc[263].tolist()
+        == nsplot.capacity_by_rate(subset, 100)
+        .set_index("rate")
+        .loc[263]
+        .tolist()
+    )
+
+
+@pytest.mark.unit
+def test_capacity_figure_is_drawn_and_returns_capacity_by_rate(
+    tmp_path: Path,
 ) -> None:
-    """A defense without a figure style raises instead of guessing."""
-    with pytest.raises(KeyError):
-        nsplot.plot_capacity(
-            noise_csv(tmp_path / "n.csv", (200, 263, 325)),
-            tmp_path / "f.pdf",
-            100,
-            "nope",
-        )
+    """The figure is written and the capacity at each measured rate returned."""
+    frame = _frame(
+        [(0, 8, 16_000_000), (200, 100, 16_000_000), (325, 300, 16_000_000)]
+    )
+    out = tmp_path / "f.pdf"
+    capacity = nsplot.plot_capacity(frame, out, 100, "rfm")
+    assert out.stat().st_size > 1000
+    assert sorted(capacity) == [0, 200, 325]
+    assert capacity[0] > capacity[200] > capacity[325]
 
 
 @pytest.mark.experiment

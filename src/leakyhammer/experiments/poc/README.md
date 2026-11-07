@@ -6,7 +6,8 @@ Can a short text message cross the defense's covert channel?
 
 The sender transmits a five-character message (40 bits) and the receiver
 decodes it, with no background noise. This is the most favorable case for the
-attacker, so a defense that fails here is closed. It reports the sent and
+attacker, so a failure here is a hint, not a verdict: the attack may be
+broken (see `docs/attack-validity.md`). It reports the sent and
 decoded text and the number of bit errors; the figure shades each window by the
 bit that was sent and plots what the receiver measured.
 

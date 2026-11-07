@@ -98,6 +98,11 @@ def targets() -> Dict[str, Target]:
         "rowhammer-mr-noise.cc",
         (*BASE_FLAGS, "-Werror"),
     )
+    found["latency_histogram"] = Target(
+        "latency_histogram",
+        paths.ATTACK_SRC_DIR / "diagnostics" / "latency_histogram.cc",
+        "latency_histogram.cc",
+    )
     found["mr_latency"] = Target(
         "mr_latency",
         paths.ATTACK_SRC_DIR / "latency" / "mr_latency.cc",
@@ -155,7 +160,8 @@ def select(names: Sequence[str]) -> List[Target]:
     """Resolves command-line names to targets.
 
     A name is a program ("dream_sender"), a defense ("dream", all of its
-    programs), "noise", "latency", or "all". No names means "all".
+    programs), "noise", "latency", "diagnostics", or "all". No names means
+    "all".
     """
     available = targets()
     if not names or "all" in names:
@@ -170,9 +176,11 @@ def select(names: Sequence[str]) -> List[Target]:
         elif name in ("noise", "latency"):
             program = f"mr_{name}"
             chosen[program] = available[program]
+        elif name == "diagnostics":
+            chosen["latency_histogram"] = available["latency_histogram"]
         else:
             choices = [*sorted(available), *sorted(DEFENSES)]
-            choices += ["noise", "latency", "all"]
+            choices += ["noise", "latency", "diagnostics", "all"]
             raise ValueError(f"Unknown target '{name}'; choose from {choices}")
     return list(chosen.values())
 

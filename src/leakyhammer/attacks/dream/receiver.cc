@@ -29,37 +29,28 @@
 #include <iostream>
 #include <vector>
 
+#include "dream_attack.hh"
 #include "rowhammer-addr.hh"
 #include "rowhammer-side.hh"
 
-// DREAM-C v2 receiver (random grouping): spread-row, rate-based decoder.
+// DREAM-C receiver (random grouping): spread-row, count-based decoder.
 //
-// Why: a single-row receiver crosses DREAM's threshold on its own, which
-// makes its self-triggered DRFMab events indistinguishable from the
-// sender's. We allocate ROW_COUNT rows that each hash to a DISTINCT DCT
-// entry under the plugin's random grouping function, then round-robin
-// probe over them. This divides the receiver's per-DCT-entry ACT rate by
-// ROW_COUNT, which is what keeps the receiver below threshold.
+// The receiver cycles through DREAM_PROBE_ROWS distinct rows in its own bank.
+// Under random grouping each row hashes to its own DCT entry (XOR with the
+// bank's mask is a bijection), so with this many rows none is activated often
+// enough to reach the threshold and trigger a DRFMab of its own, which would
+// be indistinguishable from the sender's. It also avoids the one entry the
+// sender hammers, computed from the replicated mask table.
 //
-// Under random grouping, picking rows {0, GANG_SIZE, 2*GANG_SIZE, ...}
-// already gives ROW_COUNT distinct DCT entries (XOR-with-mask is a
-// bijection, and `i*GANG_SIZE` for i in [0, ROW_COUNT) are distinct).
-// What matters is the SECOND constraint that random grouping introduces:
-// the receiver MUST avoid the DCT entry the sender is hammering. We
-// compute the sender's entry from the replicated mask table and skip any
-// receiver row that would collide with it, replacing it with a row past
-// the end of the candidate window.
-//
-// Decoding is rate-based: count DRFMab-class latency spikes per window
-// and classify "1" if count > DREAM_DECODE_THRESH.
+// It counts latency spikes in the DRFMab band per window. A periodic refresh
+// looks the same as a DRFMab to a user-space probe, so a window always holds a
+// few spikes; the decision threshold comes from a training preamble (see
+// dream_attack.hh) instead of being fixed.
 //
 // IMPORTANT: keep DREAM_SEED, DREAM_DCT_ENTRIES, and DREAM_BANKS_PER_*
 // in sync with dream.yaml + DDR5-VRR's organization. Mirror of the same
 // constants in rowhammer-dream-sender.cc.
-#define ROW_COUNT             1024
-#define GANG_SIZE             32      // row spacing; arbitrary so long as it gives distinct DCT entries
-#define PROBE_INTERVAL_NS     2000    // 2us spacing -> ~10 probes per 20us window
-#define DREAM_DECODE_THRESH   0       // per-window spike count to decode "1" (>0 spikes)
+#define PROBE_INTERVAL_NS     0       // probe continuously: a DRFMab stall is only ~280 ns
 
 #define DREAM_SEED            42
 #define DREAM_DCT_ENTRIES     65536
@@ -138,20 +129,20 @@ int main(int argc, char *argv[]) {
                 SENDER_RANK, SENDER_BG_A, SENDER_BA_A, sender_bank_idx,
                 sender_mask_a, sender_mask_a, forbidden_recv_row); FLUSH();
 
-    // Allocate ROW_COUNT rows at row IDs {0, GANG_SIZE, 2*GANG_SIZE, ...},
-    // skipping any candidate that would collide with the sender's DCT
-    // entry. We replace a forbidden candidate with row ROW_COUNT*GANG_SIZE
-    // (the next slot past the end of the nominal window). This keeps all
-    // ROW_COUNT rows distinct AND none of them collide with the sender.
+    // Allocate DREAM_PROBE_ROWS distinct rows in the receiver's bank. Each hashes
+    // to its own DCT entry, so with this many none gets activated often enough
+    // to reach the threshold and trigger a DRFMab of its own. A candidate that
+    // would share the sender's entry is moved to the unused row just after it.
     target = DDR5_16Gb_x8(NUM_CHANNEL, NUM_RANKS, 0, RECV_RANK,
                           RECV_BG, RECV_BA, 0, 0);
 
-    std::vector<char*> row_ptrs(ROW_COUNT, 0);
+    std::vector<char*> row_ptrs(DREAM_PROBE_ROWS, 0);
     int n_replaced = 0;
-    for (int i = 0; i < ROW_COUNT; i++) {
-        int row_id = i * GANG_SIZE;
+    for (int i = 0; i < DREAM_PROBE_ROWS; i++) {
+        int row_id = i * DREAM_PROBE_ROW_STRIDE;
         if (row_id == forbidden_recv_row) {
-            row_id = ROW_COUNT * GANG_SIZE;
+            // Probe rows are multiples of the stride, so this one is unused.
+            row_id += 1;
             n_replaced++;
         }
         // Defensive: row_id must be a valid DDR5_16Gb_x8 row.
@@ -162,16 +153,21 @@ int main(int argc, char *argv[]) {
     }
     if (n_replaced > 0) {
         std::printf("[DREAM-RECV] Replaced %d colliding probe row(s) with row %d\n",
-                    n_replaced, ROW_COUNT * GANG_SIZE); FLUSH();
+                    n_replaced, forbidden_recv_row + 1); FLUSH();
     }
 
-    std::printf("[DREAM-RECV] v2 spread-row (random grouping): rows=%d, gang_size=%d, probe_interval=%dns, decode_thresh=%d\n",
-                ROW_COUNT, GANG_SIZE, PROBE_INTERVAL_NS, DREAM_DECODE_THRESH); FLUSH();
+    std::printf("[DREAM-RECV] spread-row (random grouping): rows=%d, probe_interval=%dns, "
+                "preamble=%d+%d windows\n",
+                DREAM_PROBE_ROWS, PROBE_INTERVAL_NS,
+                DREAM_QUIET_WINDOWS, DREAM_ACTIVE_WINDOWS); FLUSH();
     std::printf("[DREAM-RECV] Timeout: %d\n", dream_timeout); FLUSH();
     std::vector<bool> message(msg_bytes * 8, false);
-    std::vector<int> spike_counts(msg_bytes * 8, 0);
+    // Spike count of every window, the training preamble first; -1 marks a
+    // window the receiver had to skip.
+    int total_windows = DREAM_PREAMBLE_WINDOWS + (int) message.size();
+    std::vector<int> window_counts(total_windows, -1);
 
-    sleep_until(SYNC_POINT);
+    sleep_until(DREAM_SYNC_POINT);
     uint64_t next_window = m5_rpns() + dream_txn_period;
 
     std::printf("[DREAM-RECV] End of first window: %lu\n", next_window); FLUSH();
@@ -179,10 +175,9 @@ int main(int argc, char *argv[]) {
     int n_resyncs = 0;
     int total_skipped_bits = 0;
     uint64_t ns1 = m5_rpns();
-    for (size_t i = 0; i < message.size(); i++) {
-        int n_spikes = dream_receive_count_random_gang(row_ptrs, dream_timeout, PROBE_INTERVAL_NS);
-        spike_counts[i] = n_spikes;
-        message[i] = (n_spikes > DREAM_DECODE_THRESH);
+    for (int i = 0; i < total_windows; i++) {
+        window_counts[i] = dream_receive_count_random_gang(
+            row_ptrs, dream_timeout, PROBE_INTERVAL_NS);
         next_window += dream_txn_period;
         int slack = (int)(next_window - m5_rpns());
         min_sleep_assert = std::min<int>(min_sleep_assert, slack);
@@ -191,16 +186,14 @@ int main(int argc, char *argv[]) {
         // one or more full periods, the receiver is sampling stale bits from
         // the sender's past. Skip ahead by an integer number of periods so the
         // next iteration is grid-aligned with the sender's bit clock again.
-        // The skipped indices are filled with 0 (we couldn't observe them).
+        // The skipped windows keep their -1 and decode as 0.
         uint64_t now = m5_rpns();
         if (now > next_window) {
             uint64_t behind = now - next_window;
             uint64_t skip = (behind + dream_txn_period - 1) / dream_txn_period;
-            for (uint64_t s = 0; s < skip && i + 1 < message.size(); s++) {
+            for (uint64_t s = 0; s < skip && i + 1 < total_windows; s++) {
                 ++i;
-                message[i] = false;
-                spike_counts[i] = -1;
-                ++total_skipped_bits;
+                if (i >= DREAM_PREAMBLE_WINDOWS) ++total_skipped_bits;
             }
             next_window += skip * dream_txn_period;
             ++n_resyncs;
@@ -209,6 +202,21 @@ int main(int argc, char *argv[]) {
     }
     uint64_t ns2 = m5_rpns();
     uint64_t latency = ns2 - ns1;
+
+    // Decode: a window is a 1 if its spike count is above the midpoint of the
+    // quiet and active training windows (see dream_attack.hh).
+    double threshold = dream_threshold(window_counts);
+    std::vector<int> spike_counts(message.size(), -1);
+    for (size_t i = 0; i < message.size(); i++) {
+        spike_counts[i] = window_counts[DREAM_PREAMBLE_WINDOWS + i];
+        message[i] = spike_counts[i] >= 0 && spike_counts[i] > threshold;
+    }
+    std::printf("[DREAM-RECV] Calibration: quiet median %.1f, active median %.1f, "
+                "threshold %.2f\n",
+                dream_median(window_counts, 0, DREAM_QUIET_WINDOWS),
+                dream_median(window_counts, DREAM_QUIET_WINDOWS,
+                             DREAM_PREAMBLE_WINDOWS),
+                threshold);
     std::printf("[DREAM-RECV] MinSleepAssert: %d\n", min_sleep_assert);
     std::printf("[DREAM-RECV] Resyncs: %d (%d bits skipped)\n",
                 n_resyncs, total_skipped_bits);
@@ -220,15 +228,15 @@ int main(int argc, char *argv[]) {
     }
     std::printf("\n"); FLUSH();
 
-    // Per-window spike-count histogram & summary (for tuning DECODE_THRESH).
+    // Per-window spike-count histogram & summary of the message windows.
     int max_count = 0;
     long total_spikes = 0;
     for (int c : spike_counts) {
         if (c > max_count) max_count = c;
-        total_spikes += c;
+        if (c > 0) total_spikes += c;
     }
     std::vector<int> hist(max_count + 1, 0);
-    for (int c : spike_counts) hist[c]++;
+    for (int c : spike_counts) if (c >= 0) hist[c]++;
     std::printf("[DREAM-RECV] Spike histogram (count: nWindows): ");
     for (int v = 0; v <= max_count; v++) {
         std::printf("%d:%d ", v, hist[v]);

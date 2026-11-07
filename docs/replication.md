@@ -32,14 +32,28 @@ and 3 GB per simulation, about an hour at `-j 34`) and prints Table 1.
 | **PRAC** raw rate / baseline BER / baseline capacity / noise capacity | 39.02 / 0.036 / 30.36 / 13.47 | 39.02 / 0.0356 / 30.359 / 13.472 | exact |
 | **RFM** baseline BER / baseline capacity | 0.000 / 48.77 | 0.0000 / 48.769 | exact (from the legacy variant) |
 | **RFM** noise capacity | 46.71 | 46.63 | close (0.2% low) |
-| **DREAM-C** (T_TH=40) baseline BER / baseline cap / noise cap | 0.478 / 0.067 / 0.130 | 0.4778 / 0.069 / 0.131 | close (1529 vs 1530 bit errors) |
+| **DREAM-C** (T_TH=40) baseline BER / baseline cap / noise cap | 0.478 / 0.067 / 0.130 | 0.248 / 9.19 / 8.56 | **differs on purpose**: the report's attack was defective (below) |
 | **RRS** raw / baseline BER / baseline cap / noise cap | 46.12 / 0.42 / 0.85 / 0.91 | 46.01 (46.19 noisy) / 0.431 / 0.635 / 0.738 | approximate, not exact |
 | POC, PRAC and RFM | `MICRO`, 0/40 | `MICRO`, 0/40 | exact |
-| POC, DREAM-C | `d??&L`, 18/40 | `d??&L`, 18/40 | exact |
+| POC, DREAM-C | `d??&L`, 18/40 | `TTE??`, 7/40 | **differs on purpose** |
 | POC, RRS | `HT STX STX @ @`, 14/40 | `??? ?`, 16/40 | **not reproduced** |
 
-The conclusions hold throughout: PRAC and RFM leak, DREAM-C's channel is closed
-(about 0.1 Kbps, BER near 0.5), and RRS carries under 1 Kbps.
+PRAC and RFM still match the report. DREAM-C and RRS do not support the
+report's conclusions as written; see the next section.
+
+## Where the report and the repository disagree
+
+- **DREAM-C is not closed.** The report's attack never activated the sender's
+  rows, started its receiver ~31 windows late, and could not tell refresh from a
+  defense stall. With those fixed (`attacks/dream/`) the same plugin leaks about
+  9 Kbps at T_TH=40 and falls to near zero by T_TH=500 (table in
+  [dream-c.md](dream-c.md)). The old numbers are reproducible at commit `bad71a9`.
+- **RRS is inconclusive.** The report's RRS rows are kept as they were, but
+  `latency_histogram` finds no excess of slow probes in windows of 1, so it is
+  unknown whether the channel is closed or the attack does not trigger swaps
+  ([attack-validity.md](attack-validity.md)).
+- **Units.** "Kbps" in the code is bits/s divided by 1024; the report's figures
+  use 1000, so its 50 Kbps is about 48.8 here.
 
 ## Where each number came from
 

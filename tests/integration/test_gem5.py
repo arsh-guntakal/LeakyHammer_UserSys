@@ -11,10 +11,10 @@ from leakyhammer.metrics import parse_poc
 
 @pytest.mark.integration
 @pytest.mark.slow
-def test_dream_poc_is_deterministic_and_closed(
+def test_dream_poc_is_deterministic(
     tmp_path: Path, require_simulator: None
 ) -> None:
-    """DREAM's POC decodes to 'd??&L' (18/40 errors) every time.
+    """DREAM's POC decodes to 'TTE??' (7/40 errors) every time.
 
     The simulation is deterministic, so this exact result is a regression
     guard for the whole stack: Ramulator plugin, attack programs, address
@@ -23,8 +23,8 @@ def test_dream_poc_is_deterministic_and_closed(
     log = sim.poc(get_defense("dream"), tmp_path).run()
     decoded = parse_poc(log)
     assert decoded.sent_text == "UTECE"
-    assert decoded.decoded_text == "d??&L"
-    assert (decoded.errors, decoded.resyncs) == (18, 0)
+    assert decoded.decoded_text == "TTE??"
+    assert (decoded.errors, decoded.resyncs) == (7, 0)
 
 
 @pytest.mark.integration

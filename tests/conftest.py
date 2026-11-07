@@ -5,9 +5,8 @@ formats the real programs print, instead of reading committed data files.
 """
 
 from pathlib import Path
-from typing import Callable, List, Sequence
+from typing import Callable, List, Optional, Sequence
 
-import pandas as pd
 import pytest
 
 from leakyhammer import paths
@@ -136,36 +135,6 @@ def poc_log() -> Callable[..., str]:
 
 
 @pytest.fixture
-def noise_csv() -> Callable[..., Path]:
-    """Returns a writer of a noise-sweep CSV (the plot input)."""
-
-    def write(
-        path: Path,
-        rates: Sequence[int],
-        patterns: Sequence[str] = ("0x00", "0x55"),
-        errors: int = 40,
-    ) -> Path:
-        """Writes one row per rate and pattern; returns the path."""
-        sent = "01" * 400
-        rows = [
-            {
-                "rate": rate,
-                "pattern": pattern,
-                "sent": sent,
-                "received": _flip(sent, errors * (i + 1)),
-                "time": 16019271,
-                "errors": errors * (i + 1),
-            }
-            for i, rate in enumerate(rates)
-            for pattern in patterns
-        ]
-        pd.DataFrame(rows).to_csv(path, index=False)
-        return path
-
-    return write
-
-
-@pytest.fixture
 def latency_log() -> Callable[..., str]:
     """Returns a builder of a latency-profile log."""
 
@@ -173,5 +142,35 @@ def latency_log() -> Callable[..., str]:
         """Builds a log with a "Dump Begin" section of per-request latencies."""
         dump = [f"{i}: Latency: {100 + (i % 7) * 50}" for i in range(requests)]
         return "\n".join(["Dump Begin", *dump, "Frontend:", ""])
+
+    return build
+
+
+@pytest.fixture
+def histogram_log() -> Callable[..., str]:
+    """Returns a builder of the diagnostic receiver's log."""
+
+    def build(
+        ones: Sequence[int] = (5, 3, 1, 0, 0, 0, 0, 0, 0, 0),
+        zeros: Sequence[int] = (5, 3, 1, 0, 0, 0, 0, 0, 0, 0),
+        windows: int = 4,
+        late_ns: Optional[int] = None,
+    ) -> str:
+        """Returns a log whose windows alternate 1, 0, with given bin counts."""
+        edges = [100, 150, 200, 250, 300, 550, 1000, 2000, 3000]
+        lines = ["[HIST] edges_ns: " + " ".join(str(e) for e in edges)]
+        if late_ns is not None:
+            lines.append(
+                f"[HIST] LATE: mapping the rows finished {late_ns} ns after "
+                "the sync point"
+            )
+        for i in range(windows):
+            bit = 1 - i % 2
+            counts = ones if bit else zeros
+            lines.append(
+                f"[HIST] W {i} sent {bit} : " + " ".join(str(c) for c in counts)
+            )
+        lines.append("[HIST] DONE")
+        return "\n".join(lines) + "\n"
 
     return build

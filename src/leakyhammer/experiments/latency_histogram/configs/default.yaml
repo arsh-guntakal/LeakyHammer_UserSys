@@ -1,0 +1,16 @@
+# Does a sent 1 change what a probing process sees? RFM is the positive control:
+# its stall is visible, so a tool that cannot see it is broken. RRS and DREAM-C are
+# the cases in question. See the README for how to read the output.
+pattern: "0x55"
+msg_bytes: 10
+variants:
+  # The real RFM receiver's probe: one row in the bank the sender hammers.
+  - {defense: rfm, tag: control, probe_rows: 1, first_row: 1, bank_group: 7, bank: 3}
+  # RRS: the original receiver probes a single row in the sender's bank; the
+  # second variant spreads its probes so that no probed row gets hot.
+  - {defense: rrs, tag: one_row, probe_rows: 1, first_row: 1, bank_group: 0, bank: 0}
+  - {defense: rrs, tag: spread, probe_rows: 2048, first_row: 1000, bank_group: 0, bank: 0}
+  # DREAM-C at the default threshold and at a low one, where it fires often.
+  # Its sender starts at 1.5 ms, after the receiver has mapped its rows.
+  - {defense: dream, probe_rows: 2048, first_row: 0, bank_group: 7, bank: 3, sync_ns: 1500000}
+  - {defense: dream, overrides: {threshold: 8}, probe_rows: 2048, first_row: 0, bank_group: 7, bank: 3, sync_ns: 1500000}
