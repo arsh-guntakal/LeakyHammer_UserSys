@@ -67,6 +67,35 @@ outside the receivers' latency band and broke the RFM proof of concept.
   The addresses reach about 17 GB; `--mem-size=32GB` is kept, though three trials gave
   identical results at 8 GB.
 
+## Correctness
+
+Before asking whether DREAM-C leaks, check that it mitigates at all: a
+channel is not "closed" if the defense that supposedly closes it never
+engages. `experiments/mitigation_trace` isolates the plugin's own behavior
+from the covert-channel attack: it runs the DREAM-C sender *alone* (no
+receiver, no noise generator) and counts the plugin's own "T_TH hit" log
+line, independent of anything an attacker's receiver measures.
+
+Every send hammers through a fixed 8-window calibration preamble regardless
+of its content (`DREAM_ACTIVE_WINDOWS` in `dream_attack.hh`), so even a
+message with no set bits (`0x00`) still produces some mitigations; the other
+patterns add an increasing share of hammering windows on top. Measured with
+the `default` config, T_TH=40:
+
+| Pattern | Hammering windows | Mitigations |
+|---|---|---|
+| `0x00` | 8 (preamble only) | 17 |
+| `0x55` | 408 | 1697 |
+| `0xAA` | 408 | 1698 |
+| `0xFF` | 808 | 3394 |
+
+Mitigations scale with hammering windows (roughly 2/window during the
+preamble alone, roughly 4/window once the message itself is hammering too),
+never zero despite real hammering and never drifting regardless of input.
+That is the plugin doing what it is specified to do: track activations
+against a shared counter and fire DRFMab at threshold. Everything below is
+about whether that correct behavior also leaks.
+
 ## What we measured
 
 The first version of this attack reported a closed channel (BER 0.478 at

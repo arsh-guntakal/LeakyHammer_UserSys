@@ -145,7 +145,10 @@ numbers could not be recovered from history; both are explained in
 [docs/replication.md](docs/replication.md). The DREAM-C T_TH sweep is the
 `dream_threshold` config; its corrected results are in [docs/dream-c.md](docs/dream-c.md),
 and [docs/attack-validity.md](docs/attack-validity.md) says how to check that a
-"closed channel" result is real.
+"closed channel" result is real. Before any of that, `mitigation_trace` checks that DREAM-C's plugin
+mitigates at all, with no attacker's receiver involved: its own mitigation
+count rises from 17 to 3394 as the sender hammers more, and never drifts
+regardless of input ([docs/dream-c.md](docs/dream-c.md)).
 
 ## What was verified
 

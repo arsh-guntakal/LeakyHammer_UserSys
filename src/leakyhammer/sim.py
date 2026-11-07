@@ -274,6 +274,32 @@ def poc(
     )
 
 
+def sender_only(
+    defense: Defense,
+    pattern: str,
+    msg_bytes: int,
+    out_dir: Path,
+    config_overrides: Optional[Mapping[str, Any]] = None,
+) -> Simulation:
+    """Returns a simulation running only a defense's sender, alone.
+
+    For checking what the sender's own access pattern does to a defense's
+    tracker, with no receiver or noise generator contributing activations of
+    their own.
+    """
+    out_dir = Path(out_dir)
+    config = effective_config(defense, out_dir, config_overrides)
+    programs = [defense.sender]
+    options = [f"{defense.txn_period_ns} {msg_bytes} {pattern}"]
+    return Simulation(
+        _gem5_command(out_dir, 1, config, programs, options),
+        out_dir,
+        config,
+        programs,
+        _cwd(),
+    )
+
+
 def latency_profile(defense: Defense, out_dir: Path) -> Simulation:
     """Returns the single-process memory-latency profile simulation."""
     out_dir = Path(out_dir)

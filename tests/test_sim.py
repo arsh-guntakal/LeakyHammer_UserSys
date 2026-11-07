@@ -29,6 +29,15 @@ def test_baseline_transmission_command(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
+def test_sender_only_runs_a_single_process(tmp_path: Path) -> None:
+    """A sender-only run uses one CPU and starts just the sender."""
+    s = sim.sender_only(get_defense("dream"), "0xFF", 10, tmp_path)
+    assert _flag(s.command, "--num-cpu") == "1"
+    assert _flag(s.command, "--cmd") == "./dream_sender"
+    assert _flag(s.command, "--options") == "20000 10 0xFF"
+
+
+@pytest.mark.unit
 @pytest.mark.regression
 def test_guest_programs_do_not_depend_on_the_checkout_location(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

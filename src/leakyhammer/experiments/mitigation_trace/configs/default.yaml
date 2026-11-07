@@ -1,0 +1,8 @@
+# Does DREAM-C mitigate deterministically, in proportion to how much it is
+# actually hammered? Every send hammers through a fixed 8-window calibration
+# preamble regardless of the message, so even "0x00" (a message with no set
+# bits) hammers those 8 windows; the other patterns add an increasing share
+# of hammering windows on top. Mitigations should scale with the total.
+threshold: 40
+msg_bytes: 100
+patterns: ["0x00", "0x55", "0xAA", "0xFF"]

@@ -18,6 +18,7 @@ An experiment is a package under `src/leakyhammer/experiments/<name>/`:
 | `poc` | A short text message through each defense. | `python -m leakyhammer.experiments.poc.run --config default` |
 | `latency_profile` | Single-process access latency under PRAC, showing the back-off spikes. | `python -m leakyhammer.experiments.latency_profile.run --config default` |
 | `latency_histogram` | Whether a sender's activity is visible to a probing process (with an RFM positive control). | `python -m leakyhammer.experiments.latency_histogram.run --config default` |
+| `mitigation_trace` | Whether DREAM-C mitigates correctly: counts of its own DRFMab log line, sender alone, no receiver. | `python -m leakyhammer.experiments.mitigation_trace.run --config default` |
 
 Each experiment's own `README.md` says how to run it and what data it provides.
 
