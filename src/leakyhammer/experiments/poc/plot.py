@@ -393,7 +393,7 @@ def plot_poc(defense: str, log_path: PathLike, out_path: PathLike) -> None:
         warnings.filterwarnings("ignore")
         if defense in _COUNTS:
             _plot_counts(log, out, _COUNTS[defense])
-        elif defense == "prac":
+        elif defense in ("prac", "tprac"):
             _plot_binary(log, out)
         elif defense == "dream":
             _plot_dream(log, out)

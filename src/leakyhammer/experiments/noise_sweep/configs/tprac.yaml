@@ -1,0 +1,13 @@
+# TPRAC against the unchanged PRAC attack. The 100 ms window fires no RFM
+# during the run, so its baseline must match PRAC's exactly (control). The
+# paper's default window (3900 ns, one RFM per tREFI) gets the full noise
+# sweep; longer windows are measured without noise to find where the ABO, and
+# with it the channel, comes back. 36 simulations.
+patterns: ["0x00", "0x55", "0xAA", "0xFF"]
+msg_bytes: 100
+variants:
+  - {defense: tprac, overrides: {tb_rfm_window_ns: 100000000}, noise: false}
+  - {defense: tprac, overrides: {tb_rfm_window_ns: 3900}}
+  - {defense: tprac, overrides: {tb_rfm_window_ns: 7800}, noise: false}
+  - {defense: tprac, overrides: {tb_rfm_window_ns: 15600}, noise: false}
+  - {defense: tprac, overrides: {tb_rfm_window_ns: 31200}, noise: false}

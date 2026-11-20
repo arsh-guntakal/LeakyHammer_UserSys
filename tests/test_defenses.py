@@ -1,8 +1,11 @@
 """The defense registry."""
 
+from pathlib import Path
+
 import pytest
 
-from leakyhammer import defenses, paths
+from leakyhammer import defenses, paths, sim
+from leakyhammer.attacks import build
 
 
 @pytest.mark.unit
@@ -62,3 +65,59 @@ def test_prerevert_rfm_has_no_proof_of_concept() -> None:
         "sender",
         "receiver",
     )
+
+
+@pytest.mark.unit
+def test_tprac_is_prac_plus_one_timing_based_rfm_plugin() -> None:
+    """tprac.yaml is prac.yaml with only a TPRAC plugin appended.
+
+    So the PRAC counters and ABO threshold are the ones PRAC is measured
+    with, and any difference from PRAC comes from the periodic RFMs.
+    """
+    import yaml
+
+    base = yaml.safe_load(defenses.get_defense("prac").config_path.read_text())
+    tprac = yaml.safe_load(
+        defenses.get_defense("tprac").config_path.read_text()
+    )
+    plugins = tprac["MemorySystem"]["BHDRAMController"]["plugins"]
+    added = plugins.pop()["ControllerPlugin"]
+    assert added["impl"] == "TPRAC"
+    assert set(added) == {"impl", "tb_rfm_window_ns"}
+    assert tprac == base
+
+
+@pytest.mark.unit
+def test_tprac_window_override_leaves_prac_plugin_untouched(
+    tmp_path: Path,
+) -> None:
+    """Sweeping the RFM window edits the TPRAC plugin and nothing else."""
+    import yaml
+
+    tprac = defenses.get_defense("tprac")
+    path = sim.effective_config(tprac, tmp_path, {"tb_rfm_window_ns": 7800})
+    plugins = yaml.safe_load(path.read_text())["MemorySystem"][
+        "BHDRAMController"
+    ]["plugins"]
+    by_impl = {
+        p["ControllerPlugin"]["impl"]: p["ControllerPlugin"] for p in plugins
+    }
+    assert by_impl["TPRAC"]["tb_rfm_window_ns"] == 7800
+    original = yaml.safe_load(tprac.config_path.read_text())
+    original_prac = original["MemorySystem"]["BHDRAMController"]["plugins"][0]
+    assert by_impl["PRAC"] == original_prac["ControllerPlugin"]
+
+
+@pytest.mark.unit
+def test_tprac_compiles_prac_programs_under_prac_names() -> None:
+    """TPRAC's programs build from PRAC's sources with PRAC's embedded names.
+
+    The embedded names shift the guest's memory layout, so matching them is
+    what makes the TPRAC binaries byte-identical to PRAC's.
+    """
+    found = build.targets()
+    for role in defenses.get_defense("tprac").roles:
+        tprac, prac = found[f"tprac_{role}"], found[f"prac_{role}"]
+        assert tprac.source == prac.source
+        assert tprac.legacy_name == prac.legacy_name
+        assert tprac.common_dir == prac.common_dir

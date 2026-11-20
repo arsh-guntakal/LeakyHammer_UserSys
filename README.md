@@ -13,6 +13,7 @@ and RFM. The course report that accompanies this work is not part of the reposit
 | PRAC, RFM | original artifact | `src/leakyhammer/attacks/{prac,rfm}/` |
 | DREAM-C | `dream.cpp` (ours) | `src/leakyhammer/attacks/dream/` |
 | RRS | `rrs.cpp` (original artifact) | `src/leakyhammer/attacks/rrs/` |
+| TPRAC | `tprac.cpp` (ours, ported from the TPRAC artifact) + PRAC | PRAC's, unchanged (see [docs/tprac.md](docs/tprac.md)) |
 
 ## Layout
 
@@ -115,6 +116,7 @@ tools/lint
 - Conventions and what to test: [CLAUDE.md](CLAUDE.md).
 - How DREAM-C is modeled and attacked, its results, and open questions:
   [docs/dream-c.md](docs/dream-c.md).
+- How TPRAC is modeled and attacked, and its results: [docs/tprac.md](docs/tprac.md).
 
 Results are deterministic but depend on the guest's memory layout, so three
 things you would not expect to matter do: the attack programs' compiler (plain

@@ -41,6 +41,9 @@ the DREAM-C work:
 
 - `src/dram_controller/impl/plugin/dream.cpp`: the DREAM-C defense plugin
   (listed in `src/dram_controller/CMakeLists.txt`).
+- `src/dram_controller/impl/plugin/tprac.cpp`: TPRAC's timing-based RFM
+  scheduler, ported from the TPRAC authors' artifact (listed in
+  `src/dram_controller/CMakeLists.txt`; see `docs/tprac.md`).
 - `src/dram/impl/DDR5-VRR.cpp`: comment only; see `docs/dream-c.md` for why the
   DRFM timing inflation was reverted.
 
