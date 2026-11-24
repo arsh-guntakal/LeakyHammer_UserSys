@@ -5,10 +5,8 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 import pytest
-import yaml
 
-from leakyhammer import metrics, paths, sim
-from leakyhammer.defenses import get_defense
+from leakyhammer import metrics
 
 TCK_NS = 0.625
 """DDR5-3200AN's clock period (1600 MHz); 3900 ns is 6240 clocks."""
@@ -126,16 +124,50 @@ def test_rfm_that_leaves_the_counter_is_a_violation(
 
 
 @pytest.mark.unit
-def test_rfm_count_must_match_the_activations_seen(
+def test_rfm_count_below_the_activations_seen_is_a_violation(
     tmp_path: Path, prac_debug_log: Callable[..., str]
 ) -> None:
-    """An RFM reporting a count the activations never built up fails."""
+    """An RFM reporting fewer activations than the log shows fails."""
     result = _check(
         tmp_path,
         prac_debug_log,
-        [("act", 5, 10, 1), ("act", 5, 10, 2), ("rfm", 5, 10, 9)],
+        [
+            ("act", 5, 10, 1),
+            ("act", 5, 10, 2),
+            ("act", 5, 10, 3),
+            ("rfm", 5, 10, 2),
+        ],
     )
     assert len(result.violations) >= 1
+
+
+@pytest.mark.unit
+def test_rfm_count_above_the_log_is_a_lost_line_not_a_violation(
+    tmp_path: Path, prac_debug_log: Callable[..., str]
+) -> None:
+    """Guest output cuts an activation line now and then, so the log's counts
+    are lower bounds. An RFM reporting more than the log shows is a lost line.
+    """
+    result = _check(
+        tmp_path,
+        prac_debug_log,
+        [("act", 5, 10, 1), ("act", 5, 10, 2), ("rfm", 5, 10, 4)],
+    )
+    assert (result.violations, result.desyncs) == ([], 1)
+
+
+@pytest.mark.unit
+@pytest.mark.regression
+def test_rfm_of_a_row_with_no_logged_activation_is_accepted(
+    tmp_path: Path, prac_debug_log: Callable[..., str]
+) -> None:
+    """An RFM line for a row the log never showed activated once crashed.
+
+    The replay indexed the row's count directly, so the first RFM on a row
+    with no logged activation (count 0) raised "KeyError".
+    """
+    result = _check(tmp_path, prac_debug_log, [("rfm", 5, 7, 0)])
+    assert (result.rfms, result.violations) == (1, [])
 
 
 @pytest.mark.unit
@@ -161,35 +193,6 @@ def test_line_clobbered_by_guest_output_is_not_a_violation(
     assert (result.violations, result.desyncs) == ([], 1)
 
 
-def _traced_poc(out_dir: Path, window_ns: int, prac_debug: bool) -> Path:
-    """Runs TPRAC's proof of concept with plugin debug output; returns its log.
-
-    The tracked config has no "debug" parameter (and should not), so the
-    config is copied here with it switched on.
-    """
-    tprac = get_defense("tprac")
-    config = yaml.safe_load(tprac.config_path.read_text(encoding="utf-8"))
-    plugins = config["MemorySystem"]["BHDRAMController"]["plugins"]
-    for entry in plugins:
-        plugin = entry["ControllerPlugin"]
-        if plugin["impl"] == "TPRAC":
-            plugin["tb_rfm_window_ns"] = window_ns
-            plugin["debug"] = True
-        if plugin["impl"] == "PRAC":
-            plugin["debug"] = prac_debug
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = (out_dir / "ramulator.yaml").resolve()
-    path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
-    simulation = sim.poc(tprac, out_dir.resolve())
-    command = [
-        f"--ramulator-config={path}"
-        if a.startswith("--ramulator-config=")
-        else a
-        for a in simulation.command
-    ]
-    return dataclasses.replace(simulation, command=command).run()
-
-
 @dataclasses.dataclass
 class Traces:
     """The traced runs: the default window, the paper's, and a no-RFM control.
@@ -204,19 +207,29 @@ class Traces:
 
 
 @pytest.fixture(scope="module")
-def traced(tmp_path_factory: pytest.TempPathFactory) -> Traces:
+def traced(
+    tmp_path_factory: pytest.TempPathFactory, traced_poc: Callable[..., Path]
+) -> Traces:
     """Runs the traced simulations once for all the tests in this module."""
-    if not paths.GEM5_BIN.exists():
-        pytest.skip("gem5 is not built; run tools/build")
-    if not (paths.ATTACK_BIN_DIR / "tprac_poc_sender").exists():
-        pytest.skip("attack programs are not built; run tools/compile-attacks")
     root = tmp_path_factory.mktemp("tprac-trace")
+
+    def run(name: str, window: int, prac_debug: bool) -> Path:
+        """Runs TPRAC's proof of concept with one window."""
+        return traced_poc(
+            root / name,
+            "tprac",
+            {
+                "TPRAC": {"tb_rfm_window_ns": window, "debug": True},
+                "PRAC": {"debug": prac_debug},
+            },
+        )
+
     # PRAC's own trace is on for one run only: it is large, and replaying
     # one run is enough to check what an RFM does to the counters.
-    default = _traced_poc(root / "default", 3900, True)
-    paper = _traced_poc(root / "paper", PAPER_WINDOW_NS, False)
+    default = run("default", 3900, True)
+    paper = run("paper", PAPER_WINDOW_NS, False)
     # A window longer than the run fires no RFM, leaving PRAC alone.
-    control = _traced_poc(root / "control", 100_000_000, False)
+    control = run("control", 100_000_000, False)
     return Traces(
         metrics.parse_tb_rfm_trace(default),
         metrics.parse_tb_rfm_trace(paper),
