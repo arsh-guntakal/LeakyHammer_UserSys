@@ -9,7 +9,7 @@ import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence, Union
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
 PARSE_ERROR = -30
 """Value of "SimResult.errors" when the log has no sent/received bits."""
@@ -220,3 +220,126 @@ def parse_poc(path: Union[str, Path]) -> PocResult:
         sum(a != b for a, b in zip(sent_bits, received_bits)),
         int(resyncs.group(1)) if resyncs else None,
     )
+
+
+_TPRAC_WINDOW = re.compile(
+    r"\[TPRAC\] window: (\d+) ns = (\d+) clk, first RFM at clk (\d+)"
+)
+_TPRAC_RFM = re.compile(r"\[TPRAC\] \[(\d+)\] RFMab rank (\d+)")
+_NUM_RECOVERY = re.compile(r"prac_num_recovery: (\d+)")
+_NUM_TB_RFM = re.compile(r"tprac_num_tb_rfm: (\d+)")
+_PRAC_ACT = re.compile(r"\[PRAC\] \[(\d+)\] \[ACT\] Row: (\d+) Act: (\d+)")
+_PRAC_RFM = re.compile(r"\[PRAC\] \[(\d+)\] \[RFM\] Row: (\d+) Act: (\d+)")
+
+
+@dataclass
+class TbRfmTrace:
+    """The timing-based RFMs a TPRAC run issued (needs the plugin's "debug").
+
+    - window_ns (int): the configured time between RFMs.
+    - window_clk (int): the same, in memory-controller clocks.
+    - first_clk (int): the clock the first RFM was issued at.
+    - rfms (tuple[tuple[int, int], ...]): (clock, rank) of every RFMab.
+    - num_recovery (int): Alert Back-Offs PRAC raised ("prac_num_recovery").
+    - num_tb_rfm (int): RFMab commands the plugin counted.
+    """
+
+    window_ns: int
+    window_clk: int
+    first_clk: int
+    rfms: Tuple[Tuple[int, int], ...]
+    num_recovery: int
+    num_tb_rfm: int
+
+
+def parse_tb_rfm_trace(path: Union[str, Path]) -> TbRfmTrace:
+    """Parses the TPRAC plugin's debug output and end-of-run counters.
+
+    Raises "ValueError" when the log has no TPRAC header or counters, for
+    example because the plugin ran without "debug: true" or gem5 crashed.
+    """
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    window = _TPRAC_WINDOW.search(text)
+    recovery = _NUM_RECOVERY.search(text)
+    counted = _NUM_TB_RFM.search(text)
+    if not (window and recovery and counted):
+        raise ValueError(f"{path}: no TPRAC debug output or counters found")
+    rfms = tuple(
+        (int(clk), int(rank)) for clk, rank in _TPRAC_RFM.findall(text)
+    )
+    return TbRfmTrace(
+        int(window.group(1)),
+        int(window.group(2)),
+        int(window.group(3)),
+        rfms,
+        int(recovery.group(1)),
+        int(counted.group(1)),
+    )
+
+
+@dataclass
+class RfmResetCheck:
+    """Whether every RFM reset the most-activated row of its bank.
+
+    - rfms (int): RFM mitigations the PRAC plugin logged (one per bank).
+    - nonzero (int): of those, how many mitigated a row with a count above 1.
+    - violations (list[str]): mitigations that broke the rule, each described.
+    - desyncs (int): activation lines whose count did not follow the previous
+      one for that row; a line clobbered by guest output causes one, and the
+      check carries on from the count the log reports.
+    """
+
+    rfms: int
+    nonzero: int
+    violations: List[str]
+    desyncs: int
+
+
+def check_rfm_resets(path: Union[str, Path]) -> RfmResetCheck:
+    """Replays PRAC's debug output against the rule for an RFM.
+
+    An RFM must pick a row whose count is the maximum of its bank, report the
+    count the activations built up, and leave that row at zero, so its next
+    activation counts 1. Needs the PRAC plugin's "debug: true".
+    """
+    counts: Dict[int, Dict[int, int]] = {}
+    reset: Set[Tuple[int, int]] = set()
+    check = RfmResetCheck(0, 0, [], 0)
+    for line in (
+        Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+    ):
+        act = _PRAC_ACT.search(line)
+        if act:
+            bank, row, count = (int(g) for g in act.groups())
+            rows = counts.setdefault(bank, {})
+            if (bank, row) in reset:
+                reset.discard((bank, row))
+                if count != 1:
+                    check.violations.append(
+                        f"bank {bank}: row {row} counts {count} on its first "
+                        "activation after an RFM, so the RFM did not reset it"
+                    )
+            elif count != rows.get(row, 0) + 1:
+                check.desyncs += 1
+            rows[row] = count
+            continue
+        rfm = _PRAC_RFM.search(line)
+        if not rfm:
+            continue
+        bank, row, count = (int(g) for g in rfm.groups())
+        rows = counts.setdefault(bank, {})
+        check.rfms += 1
+        check.nonzero += count > 1
+        if rows and count != max(rows.values()):
+            check.violations.append(
+                f"bank {bank}: RFM took row {row} at {count}, but the "
+                f"bank's maximum is {max(rows.values())}"
+            )
+        elif rows.get(row, 0) != count:
+            check.violations.append(
+                f"bank {bank}: RFM reports {count} for row {row}, which "
+                f"has {rows.get(row, 0)}"
+            )
+        rows[row] = 0
+        reset.add((bank, row))
+    return check
