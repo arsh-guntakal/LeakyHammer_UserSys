@@ -300,7 +300,8 @@ def check_rfm_resets(path: Union[str, Path]) -> RfmResetCheck:
 
     An RFM must pick a row whose count is the maximum of its bank, report the
     count the activations built up, and leave that row at zero, so its next
-    activation counts 1. Needs the PRAC plugin's "debug: true".
+    activation counts 1. Needs the PRAC plugin's "debug: true". A count above
+    what the log shows is taken as a lost line, not as a violation.
     """
     counts: Dict[int, Dict[int, int]] = {}
     reset: Set[Tuple[int, int]] = set()
@@ -330,16 +331,195 @@ def check_rfm_resets(path: Union[str, Path]) -> RfmResetCheck:
         rows = counts.setdefault(bank, {})
         check.rfms += 1
         check.nonzero += count > 1
-        if rows and count != max(rows.values()):
+        # Counts replayed from the log are lower bounds, because the guest's
+        # output can cut an activation line; only what they prove is flagged.
+        if count > rows.get(row, 0):
+            if row in rows:
+                check.desyncs += 1
+            rows[row] = count
+        elif count < rows.get(row, 0):
+            check.violations.append(
+                f"bank {bank}: RFM reports {count} for row {row}, which "
+                f"was activated {rows[row]} times"
+            )
+        if rows and count < max(rows.values()):
             check.violations.append(
                 f"bank {bank}: RFM took row {row} at {count}, but the "
                 f"bank's maximum is {max(rows.values())}"
             )
-        elif rows.get(row, 0) != count:
-            check.violations.append(
-                f"bank {bank}: RFM reports {count} for row {row}, which "
-                f"has {rows.get(row, 0)}"
-            )
         rows[row] = 0
         reset.add((bank, row))
     return check
+
+
+_TIMING = re.compile(r"\[Ramulator::DDR5-VRR\] (n[A-Z]+\d*): (\d+)")
+_ABO_TRANSITION = re.compile(
+    r"\[PRAC\] \[(\d+)\] <ABOState::(\w+)> -> <ABOState::(\w+)>"
+)
+_ABO_ASSERT = re.compile(
+    r"\[PRAC\] \[(\d+)\] <ABOState::\w+> Asserting ALERT_N"
+)
+_PRAC_NO_ROW = re.compile(r"\[PRAC\] \[(\d+)\] \[RFM\] No critical row")
+
+
+def parse_dram_timings(path: Union[str, Path]) -> Dict[str, int]:
+    """Returns the DRAM timings (in clocks) a run printed at start-up.
+
+    Raises "ValueError" when the log has none, for example when it comes from
+    a build older than the print.
+    """
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    timings = {name: int(v) for name, v in _TIMING.findall(text)}
+    if not timings:
+        raise ValueError(f"{path}: no DRAM timings found")
+    return timings
+
+
+@dataclass
+class AboEpisode:
+    """One Alert Back-Off, from the alert to the end of the delay.
+
+    - trigger_count (int): the count of the activation just before the alert.
+    - assert_clk, recovery_clk, delay_clk, normal_clk (int): clocks of the
+      alert, the start of the RFM recovery, the start of the delay, and the
+      return to normal operation.
+    - window_acts (int): activations between the alert and the recovery.
+    - recovery_mitigations (int): per-bank mitigations the recovery logged.
+    - recovery_max_count (int): largest count among them.
+    - delay_acts (int): activations the delay lasted for.
+    """
+
+    trigger_count: int
+    assert_clk: int
+    recovery_clk: int
+    delay_clk: int
+    normal_clk: int
+    window_acts: int
+    recovery_mitigations: int
+    recovery_max_count: int
+    delay_acts: int
+
+
+@dataclass
+class AboTrace:
+    """The back-offs a PRAC run raised (needs PRAC's "debug: true").
+
+    - episodes (list[AboEpisode]): back-offs seen from alert to the end.
+    - incomplete (int): alerts whose lines were cut or that the run ended in.
+    - max_count_before_first (int): the highest count of any row before the
+      first alert (0 when there was none).
+    """
+
+    episodes: List[AboEpisode]
+    incomplete: int
+    max_count_before_first: int
+
+
+def parse_abo_trace(path: Union[str, Path]) -> AboTrace:
+    """Replays PRAC's debug output into back-off episodes.
+
+    The plugin handles a command's state change before it counts the command,
+    so the last activation of the delay and the last RFM of the recovery are
+    logged just after the transition they cause; the counts below allow for
+    that (the delay's closing activation is added, and the recovery's RFM
+    lines are read up to the first activation after it starts).
+    """
+    lines = (
+        Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+    )
+    episodes: List[AboEpisode] = []
+    incomplete = 0
+    max_before_first = 0
+    last_count = 0
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        act = _PRAC_ACT.search(line)
+        if act:
+            last_count = int(act.group(3))
+            if not episodes and not incomplete:
+                max_before_first = max(max_before_first, last_count)
+            i += 1
+            continue
+        alert = _ABO_ASSERT.search(line)
+        if not alert:
+            i += 1
+            continue
+        episode, i = _read_abo_episode(lines, i, last_count)
+        if episode is None:
+            incomplete += 1
+        else:
+            episodes.append(episode)
+    return AboTrace(episodes, incomplete, max_before_first)
+
+
+def _read_abo_episode(
+    lines: List[str], start: int, trigger: int
+) -> Tuple[Optional[AboEpisode], int]:
+    """Reads one episode from the alert line; returns it and the next line."""
+    marks: Dict[str, int] = {}
+    window_acts = delay_acts = mitigations = max_count = 0
+    phase = "NORMAL"
+    alert_clk = int(_ABO_ASSERT.search(lines[start]).group(1))  # type: ignore[union-attr]
+    i = start + 1
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        move = _ABO_TRANSITION.search(line)
+        if move:
+            clk, before, after = (
+                int(move.group(1)),
+                move.group(2),
+                move.group(3),
+            )
+            if before != phase:
+                return None, i
+            marks[after] = clk
+            phase = after
+            if after == "NORMAL":
+                return (
+                    AboEpisode(
+                        trigger,
+                        alert_clk,
+                        marks.get("RECOVERY", -1),
+                        marks.get("DELAY", -1),
+                        clk,
+                        window_acts,
+                        mitigations,
+                        max_count,
+                        delay_acts + 1,
+                    ),
+                    i,
+                )
+            continue
+        if _PRAC_ACT.search(line):
+            if phase == "PRE_RECOVERY":
+                window_acts += 1
+            elif phase == "DELAY":
+                delay_acts += 1
+            elif phase == "RECOVERY":
+                # An activation inside the recovery is a lost RFM line.
+                return None, i
+            continue
+        rfm = _PRAC_RFM.search(line)
+        if rfm and phase in ("RECOVERY", "DELAY") and delay_acts == 0:
+            mitigations += 1
+            max_count = max(max_count, int(rfm.group(3)))
+        elif _PRAC_NO_ROW.search(line) and phase in ("RECOVERY", "DELAY"):
+            if delay_acts == 0:
+                mitigations += 1
+    return None, i
+
+
+def parse_counter(path: Union[str, Path], name: str) -> int:
+    """Returns a plugin counter printed at the end of a run.
+
+    "name" is the counter's name in the log, for example "prac_num_recovery".
+
+    Raises "ValueError" when the log has no such counter.
+    """
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    found = re.search(rf"^\s*{re.escape(name)}: (\d+)", text, re.MULTILINE)
+    if not found:
+        raise ValueError(f"{path}: no counter '{name}'")
+    return int(found.group(1))

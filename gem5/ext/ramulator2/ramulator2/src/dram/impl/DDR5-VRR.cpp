@@ -563,6 +563,12 @@ class DDR5VRR : public IDRAM, public Implementation {
         }
       }      
 
+      // The row-cycle timings PRAC changes, as finally used (after the PRAC
+      // adjustment and any user override), so a run's log records them.
+      for (auto name : {"nRAS", "nRP", "nRC", "nRTP", "nWR"}) {
+        std::cout << "[Ramulator::DDR5-VRR] " << name << ": " << m_timing_vals(name) << std::endl;
+      }
+
       // Set read latency
       m_read_latency = m_timing_vals("nCL") + m_timing_vals("nBL");
 

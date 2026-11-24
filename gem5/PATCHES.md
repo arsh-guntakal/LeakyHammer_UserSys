@@ -44,8 +44,10 @@ the DREAM-C work:
 - `src/dram_controller/impl/plugin/tprac.cpp`: TPRAC's timing-based RFM
   scheduler, ported from the TPRAC authors' artifact (listed in
   `src/dram_controller/CMakeLists.txt`; see `docs/tprac.md`).
-- `src/dram/impl/DDR5-VRR.cpp`: comment only; see `docs/dream-c.md` for why the
-  DRFM timing inflation was reverted.
+- `src/dram/impl/DDR5-VRR.cpp`: a comment (see `docs/dream-c.md` for why the
+  DRFM timing inflation was reverted), and a start-up print of the effective
+  `nRAS`, `nRP`, `nRC`, `nRTP` and `nWR`, so a run's log records the timings
+  PRAC changes (`docs/fidelity/prac.md`). The print does not change results.
 
 `rrs.cpp` (Randomized Row-Swap) came with the original LeakyHammer artifact.
 

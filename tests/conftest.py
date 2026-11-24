@@ -4,13 +4,16 @@ Tests build the logs and tables they need from the builders below, in the
 formats the real programs print, instead of reading committed data files.
 """
 
+import dataclasses
 from pathlib import Path
-from typing import Callable, List, Sequence
+from typing import Any, Callable, List, Mapping, Optional, Sequence
 
 import pandas as pd
 import pytest
+import yaml
 
-from leakyhammer import paths
+from leakyhammer import paths, sim
+from leakyhammer.defenses import get_defense
 from leakyhammer.metrics import bits_to_text, text_to_bits
 
 MARKERS = {"unit", "integration", "slow", "regression", "experiment"}
@@ -220,5 +223,102 @@ def prac_debug_log() -> Callable[..., str]:
             )
             + "\n"
         )
+
+    return build
+
+
+@pytest.fixture(scope="session")
+def traced_poc() -> Callable[..., Path]:
+    """Returns a runner of a defense's proof of concept with debug output."""
+
+    def run(
+        out_dir: Path,
+        defense: str,
+        plugins: Mapping[str, Mapping[str, Any]],
+        timing: Optional[Mapping[str, int]] = None,
+    ) -> Path:
+        """Runs the proof of concept and returns its log path.
+
+        - plugins: parameters to set on each controller plugin, by its "impl"
+          (the tracked configs have no "debug" parameter, and should not).
+        - timing: DRAM timings, in clocks, to override.
+
+        Skips when the simulator or the defense's programs are not built.
+        """
+        spec = get_defense(defense)
+        if not paths.GEM5_BIN.exists():
+            pytest.skip("gem5 is not built; run tools/build")
+        if not spec.poc_sender.exists():
+            pytest.skip("attack programs are not built; run tools/build")
+        config = yaml.safe_load(spec.config_path.read_text(encoding="utf-8"))
+        controller = config["MemorySystem"]["BHDRAMController"]
+        for entry in controller["plugins"]:
+            plugin = entry["ControllerPlugin"]
+            plugin.update(plugins.get(plugin["impl"], {}))
+        if timing:
+            config["MemorySystem"]["DRAM"].setdefault("timing", {}).update(
+                timing
+            )
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = (out_dir / "ramulator.yaml").resolve()
+        path.write_text(yaml.safe_dump(config, sort_keys=False), "utf-8")
+        simulation = sim.poc(spec, out_dir.resolve())
+        flag = "--ramulator-config="
+        command = [
+            f"{flag}{path}" if a.startswith(flag) else a
+            for a in simulation.command
+        ]
+        return dataclasses.replace(simulation, command=command).run()
+
+    return run
+
+
+@pytest.fixture
+def prac_abo_log() -> Callable[..., str]:
+    """Returns a builder of the PRAC plugin's back-off debug lines."""
+
+    def build(
+        trigger: int = 128,
+        start_clk: int = 1000,
+        window_acts: int = 0,
+        mitigations: int = 4,
+        delay_acts: int = 4,
+        recovery_clks: int = 1682,
+        cut: bool = False,
+    ) -> str:
+        """Builds one back-off, in the order the plugin prints it.
+
+        The plugin changes state before it counts the command that caused
+        the change, so the last RFM of the recovery and the last activation
+        of the delay are printed after their transitions.
+        """
+
+        def act(count: int) -> str:
+            """Returns an activation line."""
+            return f"[PRAC] [3] [ACT] Row: 9 Act: {count}"
+
+        def move(clk: int, before: str, after: str) -> str:
+            """Returns a state transition line."""
+            return f"[PRAC] [{clk}] <ABOState::{before}> -> <ABOState::{after}>"
+
+        lines = [
+            act(trigger),
+            f"[PRAC] [{start_clk}] <ABOState::NORMAL> Asserting ALERT_N.",
+            move(start_clk, "NORMAL", "PRE_RECOVERY"),
+            *[act(1)] * window_acts,
+            move(start_clk + 288, "PRE_RECOVERY", "RECOVERY"),
+        ]
+        recovery_end = start_clk + 288 + recovery_clks
+        lines.append(move(recovery_end, "RECOVERY", "DELAY"))
+        lines += [
+            f"[PRAC] [{b}] [RFM] Row: 9 Act: {trigger}"
+            for b in range(mitigations)
+        ]
+        if cut:
+            return "\n".join(lines) + "\n"
+        lines += [act(1)] * (delay_acts - 1)
+        lines.append(move(recovery_end + 5000, "DELAY", "NORMAL"))
+        lines.append(act(1))
+        return "\n".join(lines) + "\n"
 
     return build
