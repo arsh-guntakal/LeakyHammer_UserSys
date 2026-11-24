@@ -31,9 +31,9 @@ data.
 
 | Parameter | Meaning |
 |---|---|
-| `tb_rfm_window_ns` | Time between timing-based RFMs. The paper's default is one per tREFI, 3900 ns. Must exceed tRFM (~295 ns). |
+| `tb_rfm_window_ns` | Time between timing-based RFMs. 3900 ns (one per tREFI) is the default of the authors' plugin, not a window the paper evaluates: the paper sets the window from the RowHammer threshold (about 6.2 us at 1024, 1 us at 128). Must exceed tRFM (350 ns). See [fidelity/tprac.md](fidelity/tprac.md). |
 
-The periodic RFMab stalls the rank for tRFM (~295 ns, the same as a refresh), well
+The periodic RFMab stalls the rank for tRFM (350 ns, the paper's tRFMab; `tests/test_tprac.py` measures it from a trace), well
 under the receiver's 1300 ns back-off band, so the receiver does not mistake
 them for back-offs.
 
@@ -102,7 +102,7 @@ patterns' baseline runs:
 ## Open questions
 
 1. **Performance.** TPRAC trades bandwidth for closing the channel: at 3900 ns it
-   stalls each rank for ~295 ns per 3.9 us (about 7.6% of the time). Measuring
+   stalls each rank for 350 ns per 3.9 us (about 9% of the time). Measuring
    IPC across windows is the other half of the trade-off.
 2. **Threshold.** The crossover window should scale with `abo_threshold`;
    sweeping both would give the window needed for a given threshold.

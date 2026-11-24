@@ -175,3 +175,50 @@ def latency_log() -> Callable[..., str]:
         return "\n".join(["Dump Begin", *dump, "Frontend:", ""])
 
     return build
+
+
+@pytest.fixture
+def tprac_trace_log() -> Callable[..., str]:
+    """Returns a builder of the log a TPRAC run prints with "debug: true"."""
+
+    def build(
+        window_ns: int = 3900,
+        window_clk: int = 6240,
+        first_clk: int = 5680,
+        count: int = 3,
+        ranks: int = 2,
+        recoveries: int = 0,
+    ) -> str:
+        """Builds the header, "count" rounds of one RFMab per rank, counters."""
+        lines = [
+            f"[TPRAC] window: {window_ns} ns = {window_clk} clk, "
+            f"first RFM at clk {first_clk}"
+        ]
+        for k in range(count):
+            clk = first_clk + k * window_clk
+            lines += [f"[TPRAC] [{clk}] RFMab rank {r}" for r in range(ranks)]
+        lines += [
+            f"      prac_num_recovery: {recoveries}",
+            f"      tprac_num_tb_rfm: {count * ranks}",
+        ]
+        return "\n".join([*lines, ""])
+
+    return build
+
+
+@pytest.fixture
+def prac_debug_log() -> Callable[..., str]:
+    """Returns a builder of the PRAC plugin's debug lines from events."""
+
+    def build(events: Sequence[Sequence[object]]) -> str:
+        """Builds lines from ("act"|"rfm", bank, row, count) tuples."""
+        tags = {"act": "ACT", "rfm": "RFM"}
+        return (
+            "\n".join(
+                f"[PRAC] [{bank}] [{tags[kind]}] Row: {row} Act: {count}"
+                for kind, bank, row, count in events
+            )
+            + "\n"
+        )
+
+    return build

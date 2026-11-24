@@ -21,8 +21,10 @@
 // counter reaches the threshold anyway (for example, with too long a window).
 //
 // PARAMETERS (see tprac.yaml)
-//   tb_rfm_window_ns  Time between timing-based RFMs. The paper's default is
-//                     one per tREFI (3900 ns). It must exceed tRFM (~295 ns).
+//   tb_rfm_window_ns  Time between timing-based RFMs. 3900 ns (one per tREFI)
+//                     is the default of the authors' plugin; the paper itself
+//                     sets the window from the RowHammer threshold. It must
+//                     exceed tRFM (350 ns).
 // =============================================================================
 
 #include "base/base.h"
